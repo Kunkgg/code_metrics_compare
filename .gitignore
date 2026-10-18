@@ -1,0 +1,5 @@
+# Pi 项目级资源：含指向本机安装路径的符号链接，不入库
+# 恢复方式：见 README 或手工 ln -s 到 agent-browser 内置 skills 目录
+.pi/
+.agents/
+skills-lock.json
