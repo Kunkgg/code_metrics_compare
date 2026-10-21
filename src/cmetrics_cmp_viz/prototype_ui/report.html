@@ -1,0 +1,24 @@
+<!doctype html>
+<!-- 一次性 UI 原型：同一份合成扫描数据，三种结构，使用 ?variant=A|B|C 比较；不是正式报告实现。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Cmetrics · 离线对比报告原型</title>
+  <style>@@STYLE@@</style>
+</head>
+<body>
+  <section id="fallback" class="static-fallback">
+    <div class="notice warning"><strong>静态概览 · 模拟数据原型</strong><p id="init-status">交互尚未初始化。若 JavaScript 不可用，只能阅读以下概览，不能搜索、筛选或下钻。</p></div>
+    @@STATIC@@
+  </section>
+  <div id="app"></div>
+  <div id="switcher"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="application/json" id="report-data">@@DATA@@</script>
+  <script>const PROTOTYPE_MODE = @@PROTOTYPE_MODE@@;
+@@SCRIPT@@
+  </script>
+</body>
+</html>

@@ -34,6 +34,9 @@ venv/
 ENV/
 env/
 
+# 可复现模拟数据、一次性原型 HTML 与截图
+output/
+
 # Tools cache
 .ruff_cache/
 .pytest_cache/
