@@ -1,5 +1,9 @@
 # AGENTS.md
 
+## Quick start & workflow
+
+技术栈、开发环境与常用 CLI 命令（环境同步、代码规范、测试及模拟数据生成）。See `README.md`.
+
 ## Agent skills
 
 ### Issue tracker

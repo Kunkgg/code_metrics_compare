@@ -1,10 +1,10 @@
 # Cmetrics 模拟扫描数据生成指导
 
-- 状态：P0 准备材料，口径已按用户确认收敛；数据生成脚本尚未实现
+- 状态：P0 实施完成，包含口径规范、CLI 生成脚本与 L0–L3 自动化校验体系
 - 结构契约：[schemas/cmetrics-report.schema.json](../schemas/cmetrics-report.schema.json)（JSON Schema Draft 2020-12，模拟 profile v1）
 - 依据：[docs/FSR.md](FSR.md) §2–4、§6.3、§8.1–8.3；交接记录 `.scratch/cmetrics-schema-handoff-ruawuff6.md`；本轮用户确认 Q1–Q8
 - 优先级：本文及 Schema 采用的用户确认口径优先于 FSR 中较早的“待确认”表述；`sample.json` 保持原样，仅作结构材料
-- 交付边界：本轮只交付 Schema 与本指导。数据生成脚本在**技术选型完成且项目框架搭建完成之后**才开始实现；本文不预定实现语言细节、第三方依赖与测试框架
+- 交付成果：已完成基于 `msgspec` 与 `jsonschema` 的独立生成脚本与校验器，提供 CLI 命令行工具 `cmetrics_cmp_viz.cli`，具体使用见第 11 节。
 
 ## 1. 范围与定位
 
@@ -195,12 +195,100 @@
 | 官方阈值/`<1000` 规则与内部版本一致性 | 逐侧读取自身 `huge_threshold`；密度特例仅用于冗余项 |
 | 外部输入的重复并集正确性 | 不可证（§5.4），按能力边界声明 |
 
-## 10. 实现启动条件与验证器注意事项
+## 10. 实现状态与验证器说明
 
-- 生成脚本启动条件：**技术选型完成、项目框架搭建完成**（用户确认）。届时再定 CLI 参数、输出布局、测试框架与依赖清单，本文不预先约定。
-- 验证器注意：
-  - Draft 2020-12 须使用对应验证器（如 `jsonschema` 的 `Draft202012Validator`），首次实现时核验运行时可用性与版本。
-  - 重复对象键与 `NaN`/`Infinity` 须在 L0 解析层拦截，Schema 无法事后发现。
-  - 本 Schema 未使用 `multipleOf` 表达 6 位小数精度，避免二进制浮点误拒合法十进制数；若未来加入，须先测试边界。
-  - 十进制舍入与比较须生成、校验两侧统一实现（§3.3）。
-- 本机环境此前仅有静态证据（CommandLineTools Python 3.9.6；`jsonschema` 未见安装记录）；运行时可用性以实现阶段实际核验为准。
+- 生成脚本实现：已基于 Python 3.12+、`msgspec`、`jsonschema`、`polars` 完成独立生成脚本与分层校验器（`cmetrics_cmp_viz.cli`）。
+- 验证器特性：
+  - L0：原生拦截重复对象键与 `NaN`/`Infinity` 非标准常量；
+  - L1：基于 `jsonschema.Draft202012Validator` 执行全量模式校验；
+  - L2：实现 33 项指标严格重算、尾对象最大值三方一致性、`-fp` 扫描路径段最长公共祖先检查及超大目录重算；
+  - L3：校验内部有效物理行覆盖模型、整文件重复等价性及变化台账。
+  - 十进制舍入统一采用 Half-Up（四舍五入）保留至多 6 位小数。
+
+## 11. 模拟数据生成器与校验器使用指南 (CLI 操作手册)
+
+### 11.1 环境准备
+
+确保已安装 `uv`，并在项目根目录下完成依赖同步：
+
+```bash
+uv sync
+```
+
+### 11.2 生成单个模拟扫描报告
+
+使用 `generate` 子命令生成单个符合 L0–L3 规范的扫描 JSON 文件及内部行覆盖模型：
+
+```bash
+uv run python -m cmetrics_cmp_viz.cli generate \
+  --output-dir ./output/single_scan \
+  --seed 42 \
+  --num-files 20 \
+  --cmetrics-version "mock-scan-v1.0.0"
+```
+
+**产物说明**：
+- `output/single_scan/mock_scan.json`：符合 Schema 的完整扫描报告（含 33 项 summary 及 7 类明细）。
+- `output/single_scan/internal_model.json`：生成器内部物理行与有效行覆盖模型（用于 L3 校验）。
+
+### 11.3 生成 Baseline / Current 演化对与变化台账
+
+加入 `--pair` 参数可生成从 Baseline 演化出 Current 的一对数据，同时产出有据可查的变化台账（Change Ledger）：
+
+```bash
+uv run python -m cmetrics_cmp_viz.cli generate \
+  --pair \
+  --output-dir ./output/pair_scan \
+  --seed 2026 \
+  --num-files 30
+```
+
+**产物说明**：
+- `output/pair_scan/baseline.json`：基线扫描报告；
+- `output/pair_scan/current.json`：发生增删改变动后的当前扫描报告；
+- `output/pair_scan/change_ledger.json`：变化台账，记录所有文件新增、删除或内容修改的具体差异。
+
+### 11.4 对扫描报告执行分层校验
+
+使用 `validate` 子命令对扫描报告进行 L0–L3 任意级别的严格检验：
+
+```bash
+# 1. 基础结构与 Schema 校验 (L1)
+uv run python -m cmetrics_cmp_viz.cli validate ./output/single_scan/mock_scan.json --level L1
+
+# 2. 全量语义与 33 项指标公式复算 (L2，默认级别)
+uv run python -m cmetrics_cmp_viz.cli validate ./output/single_scan/mock_scan.json --level L2
+
+# 3. 内部物理行模型覆盖并集与变化台账校验 (L3)
+uv run python -m cmetrics_cmp_viz.cli validate ./output/single_scan/mock_scan.json \
+  --level L3 \
+  --internal-model ./output/single_scan/internal_model.json
+```
+
+**返回码与诊断**：
+- 校验通过时返回退出码 `0`，并打印各级别通过日志；
+- 校验失败时返回退出码 `1`，并逐项输出错误位置与具体不符的原因。
+
+### 11.5 Python 代码内部调用范式
+
+可在 Python 脚本或单元测试中直接调用生成器与校验器核心 API：
+
+```python
+from cmetrics_cmp_viz.generator import GeneratorConfig, MockDataGenerator
+from cmetrics_cmp_viz.validator import validate_l1, validate_l2, validate_l3
+
+# 1. 配置并生成报告
+config = GeneratorConfig(seed=123, num_files=15)
+generator = MockDataGenerator(config)
+report, internal_model = generator.generate_single_report()
+
+# 2. 执行校验断言
+l1_errors = validate_l1(report)
+assert l1_errors == [], f"L1 校验失败: {l1_errors}"
+
+l2_errors = validate_l2(report)
+assert l2_errors == [], f"L2 校验失败: {l2_errors}"
+
+l3_errors = validate_l3(report, internal_model)
+assert l3_errors == [], f"L3 校验失败: {l3_errors}"
+```
