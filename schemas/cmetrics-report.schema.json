@@ -1,0 +1,434 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:cmetrics-cmp-viz:schema:mock-scan:1",
+  "title": "Cmetrics 模拟扫描结果 profile v1",
+  "description": "当前项目的严格模拟扫描结构契约，不是 Cmetrics 所有版本的官方输出契约。生成与补充语义校验见 docs/mock-data-generation.md。",
+  "$comment": "Schema 通过不代表统计一致性通过。函数最大值对象的末尾位置、实际最大值、引用、扫描路径、阈值、公式及有效重复行并集须另行校验。sample.json 仅作为结构样例，保持原样。",
+  "type": "object",
+  "required": ["summary_metrics", "detail_metrics"],
+  "additionalProperties": false,
+  "properties": {
+    "summary_metrics": { "$ref": "#/$defs/summaryMetrics" },
+    "detail_metrics": { "$ref": "#/$defs/detailMetrics" }
+  },
+  "$defs": {
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "nonNegativeNumber": {
+      "type": "number",
+      "minimum": 0,
+      "description": "有限非负数；生成结果最多保留六位小数，精度和公式由语义校验检查。"
+    },
+    "percentage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "百分数，5.0 表示 5%；零分母输出 0 仅为当前模拟 profile 的约定。"
+    },
+    "lineNumber": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "从 1 开始的物理行号；是否超出所属文件须另行检查。"
+    },
+    "nonEmptyString": {
+      "type": "string",
+      "minLength": 1
+    },
+    "filePath": {
+      "type": "string",
+      "pattern": "^/[^,\\u0000-\\u001f\\u007f]+$",
+      "description": "POSIX 绝对文件路径，不含逗号或控制字符。规范化、后缀、扫描范围、文件存在性及路径碰撞由语义校验检查；不访问真实文件系统。"
+    },
+    "directoryPath": {
+      "type": "string",
+      "pattern": "^/[^,\\u0000-\\u001f\\u007f]*$",
+      "description": "POSIX 绝对目录路径，不含逗号或控制字符；包含扫描公共根的计数口径见生成指引。"
+    },
+    "hugeThreshold": {
+      "type": "object",
+      "required": [
+        "huge_headerfile",
+        "huge_non_headerfile",
+        "huge_method",
+        "huge_cyclomatic_complexity",
+        "huge_folder"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "huge_headerfile": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "头文件有效代码行阈值，严格大于才超限。"
+        },
+        "huge_non_headerfile": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "非头文件有效代码行阈值，严格大于才超限。"
+        },
+        "huge_method": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "函数内部有效代码行阈值，排除定义行，严格大于才超限。"
+        },
+        "huge_cyclomatic_complexity": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "普通圈复杂度阈值，不是 CCA 阈值，严格大于才超限。"
+        },
+        "huge_folder": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "目录直接文件和直接非空子目录总数阈值，严格大于才超限。"
+        }
+      }
+    },
+    "summaryMetrics": {
+      "type": "object",
+      "description": "33 个必填数值指标、3 项必填扫描元信息；2 个抑制告警指标仅作可选结构兼容，不生成、不参与统计一致性校验。",
+      "required": [
+        "code_size",
+        "raw_lines",
+        "methods_total",
+        "cyclomatic_complexity_total",
+        "cyclomatic_complexity_per_method",
+        "maximum_cyclomatic_complexity",
+        "huge_cyclomatic_complexity_total",
+        "huge_cyclomatic_complexity_ratio",
+        "method_lines",
+        "lines_per_method",
+        "huge_method_total",
+        "huge_method_ratio",
+        "files_total",
+        "folders_total",
+        "lines_per_file",
+        "huge_headerfile_total",
+        "huge_headerfile_ratio",
+        "huge_non_headerfile_total",
+        "huge_non_headerfile_ratio",
+        "huge_folder_total",
+        "huge_folder_ratio",
+        "file_duplication_total",
+        "file_duplication_ratio",
+        "non_hfile_duplication_total",
+        "non_hfile_duplication_ratio",
+        "code_duplication_total",
+        "code_duplication_ratio",
+        "non_hfile_code_duplication_total",
+        "non_hfile_code_duplication_ratio",
+        "unsafe_functions_total",
+        "unsafe_functions_kloc",
+        "redundant_code_total",
+        "redundant_code_kloc",
+        "cmetrics_version",
+        "huge_threshold",
+        "command"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "code_size": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "文件有效代码行总数：所有 file_sizes 三元数组第 1 项之和。"
+        },
+        "raw_lines": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "文件物理行总数，含空行、注释行：所有 file_sizes 第 2 项之和。"
+        },
+        "methods_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "普通函数记录数，不包含 method_metrics 的最大值对象。"
+        },
+        "cyclomatic_complexity_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "普通函数记录的 cyclomatic_complexity 之和，不是 CCA。"
+        },
+        "cyclomatic_complexity_per_method": {
+          "$ref": "#/$defs/nonNegativeNumber",
+          "description": "cyclomatic_complexity_total / methods_total；零分母按模拟约定取 0。"
+        },
+        "maximum_cyclomatic_complexity": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "普通函数的最大圈复杂度；无函数时为 0，须与末尾最大值对象一致。"
+        },
+        "huge_cyclomatic_complexity_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "圈复杂度严格大于 huge_threshold.huge_cyclomatic_complexity 的普通函数数。"
+        },
+        "huge_cyclomatic_complexity_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "huge_cyclomatic_complexity_total / methods_total × 100。"
+        },
+        "method_lines": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "普通函数 nbnc_loc 之和，排除函数定义行。"
+        },
+        "lines_per_method": {
+          "$ref": "#/$defs/nonNegativeNumber",
+          "description": "method_lines / methods_total；零分母按模拟约定取 0。"
+        },
+        "huge_method_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "nbnc_loc 严格大于 huge_threshold.huge_method 的普通函数数。"
+        },
+        "huge_method_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "huge_method_total / methods_total × 100。"
+        },
+        "files_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "file_sizes 的文件数；模拟范围仅含支持后缀且物理行数大于 0 的文件。"
+        },
+        "folders_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "从完整文件集合恢复的非空目录数，计至扫描公共根并包含公共根；空扫描为 0。"
+        },
+        "lines_per_file": {
+          "$ref": "#/$defs/nonNegativeNumber",
+          "description": "code_size / files_total；零分母按模拟约定取 0。"
+        },
+        "huge_headerfile_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "有效代码行严格大于 huge_threshold.huge_headerfile 的头文件数。"
+        },
+        "huge_headerfile_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "huge_headerfile_total / files_total × 100，分母不是头文件数。"
+        },
+        "huge_non_headerfile_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "有效代码行严格大于 huge_threshold.huge_non_headerfile 的非头文件数。"
+        },
+        "huge_non_headerfile_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "huge_non_headerfile_total / files_total × 100，分母不是非头文件数。"
+        },
+        "huge_folder_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "直接子项数严格大于 huge_threshold.huge_folder 的目录数，即 huge_folders 的键数。"
+        },
+        "huge_folder_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "huge_folder_total / folders_total × 100。"
+        },
+        "file_duplication_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "duplication_files 所有组成员的文件路径并集大小，不是组数或剔除每组一份后的副本数。"
+        },
+        "file_duplication_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "file_duplication_total / files_total × 100。"
+        },
+        "non_hfile_duplication_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "重复文件路径并集中非头文件的数量。"
+        },
+        "non_hfile_duplication_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "non_hfile_duplication_total / files_total × 100，分母仍为全部文件数。"
+        },
+        "code_duplication_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "所有 file_sizes 第 3 项之和；每文件按有效重复行并集去重。"
+        },
+        "code_duplication_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "code_duplication_total / code_size × 100。"
+        },
+        "non_hfile_code_duplication_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "非头文件的 file_sizes 第 3 项之和。"
+        },
+        "non_hfile_code_duplication_ratio": {
+          "$ref": "#/$defs/percentage",
+          "description": "模拟约定为 non_hfile_code_duplication_total / code_size × 100；分母不是非头文件代码行，真实内部尺度尚未核验。"
+        },
+        "unsafe_functions_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "逐文件、逐危险函数名的去重行号数组长度之和；同一行的不同名称分别计数。"
+        },
+        "unsafe_functions_kloc": {
+          "$ref": "#/$defs/nonNegativeNumber",
+          "description": "unsafe_functions_total / code_size × 1000；仅零分母取 0，不套用冗余密度的低代码量规则。"
+        },
+        "redundant_code_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "所有 redundant_code 起始行号数组长度之和，单位是冗余代码块，不是行；不额外推断去重规则。"
+        },
+        "redundant_code_kloc": {
+          "$ref": "#/$defs/nonNegativeNumber",
+          "description": "code_size < 1000 时为 0，否则为 redundant_code_total / code_size × 1000。"
+        },
+        "warning_suppression_total": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "仅兼容样例的可选字段；不生成、不分析、不检查其统计公式，也不以 0 代替省略。"
+        },
+        "warning_suppression_kloc": {
+          "$ref": "#/$defs/nonNegativeNumber",
+          "description": "仅兼容样例的可选字段；不生成、不分析、不从已忽略的总数补算。"
+        },
+        "cmetrics_version": {
+          "$ref": "#/$defs/nonEmptyString",
+          "description": "扫描工具版本标记，不是代码版本、生成器版本或 profile 版本；合成标记不证明运行过该版本。"
+        },
+        "huge_threshold": { "$ref": "#/$defs/hugeThreshold" },
+        "command": {
+          "$ref": "#/$defs/nonEmptyString",
+          "description": "完整扫描命令元信息。语义校验须检查 clike 及唯一 -fp 参数；多目录在一个参数值内以逗号分隔。只解析，禁止执行。"
+        }
+      }
+    },
+    "fileSize": {
+      "type": "array",
+      "description": "固定三元数组 [有效代码行数 nbnc_loc, 文件物理行数 raw_line, 有效重复代码行数]。跨项关系 0 <= 重复行 <= 有效行 <= 物理行须语义校验。",
+      "minItems": 3,
+      "maxItems": 3,
+      "prefixItems": [
+        { "$ref": "#/$defs/nonNegativeInteger" },
+        { "type": "integer", "minimum": 1 },
+        { "$ref": "#/$defs/nonNegativeInteger" }
+      ],
+      "items": false
+    },
+    "method": {
+      "type": "object",
+      "required": [
+        "file_name",
+        "method_name",
+        "nbnc_loc",
+        "cyclomatic_complexity",
+        "start_line",
+        "end_line"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file_name": { "$ref": "#/$defs/filePath" },
+        "method_name": {
+          "$ref": "#/$defs/nonEmptyString",
+          "description": "原始函数名，不保证含完整签名或跨版本唯一；同文件允许出现同名函数。"
+        },
+        "nbnc_loc": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "函数内部有效代码行，排除函数定义行，不直接等于物理行跨度。"
+        },
+        "cyclomatic_complexity": {
+          "$ref": "#/$defs/nonNegativeInteger",
+          "description": "普通圈复杂度，不是 CCA；不据此声称生成了可由真实编译器验证的函数。"
+        },
+        "start_line": { "$ref": "#/$defs/lineNumber" },
+        "end_line": {
+          "$ref": "#/$defs/lineNumber",
+          "description": "从 1 开始且包含末行；须满足 start_line <= end_line <= 文件物理行数。"
+        }
+      }
+    },
+    "methodMaxima": {
+      "type": "object",
+      "description": "唯一且必须位于 method_metrics 末尾；无普通函数时两个值均为 0。不是函数记录。",
+      "required": ["maximum_cyclomatic_complexity", "maximum_nbnc_loc"],
+      "additionalProperties": false,
+      "properties": {
+        "maximum_cyclomatic_complexity": { "$ref": "#/$defs/nonNegativeInteger" },
+        "maximum_nbnc_loc": { "$ref": "#/$defs/nonNegativeInteger" }
+      }
+    },
+    "duplicationFragment": {
+      "type": "object",
+      "required": ["file_name", "start_line", "code_duplication"],
+      "additionalProperties": false,
+      "properties": {
+        "file_name": { "$ref": "#/$defs/filePath" },
+        "start_line": { "$ref": "#/$defs/lineNumber" },
+        "code_duplication": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "重复片段长度；不得未经内部行模型直接换算成物理结束行。"
+        },
+        "end_line": {
+          "$ref": "#/$defs/lineNumber",
+          "description": "仅兼容已有样例的可选字段；新模拟数据不生成，定位和长度校验不依赖该字段。"
+        }
+      }
+    },
+    "detailMetrics": {
+      "type": "object",
+      "required": [
+        "file_sizes",
+        "method_metrics",
+        "code_duplication",
+        "duplication_files",
+        "unsafe_functions",
+        "redundant_code",
+        "huge_folders"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "file_sizes": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/filePath" },
+          "additionalProperties": { "$ref": "#/$defs/fileSize" }
+        },
+        "method_metrics": {
+          "type": "array",
+          "description": "普通函数后恰有一个最大值对象。contains 只保证数量为一，不保证末尾位置；后者必须另行校验。无函数时只含两个最大值为 0 的对象，不能是空数组。",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              { "$ref": "#/$defs/method" },
+              { "$ref": "#/$defs/methodMaxima" }
+            ]
+          },
+          "contains": { "$ref": "#/$defs/methodMaxima" },
+          "minContains": 1,
+          "maxContains": 1
+        },
+        "code_duplication": {
+          "type": "object",
+          "description": "扫描内组名到重复片段数组的映射；每组至少两个片段，可来自同一文件。组名不提供跨扫描稳定身份。",
+          "propertyNames": { "$ref": "#/$defs/nonEmptyString" },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/duplicationFragment" }
+          }
+        },
+        "duplication_files": {
+          "type": "object",
+          "description": "扫描内组名到全文重复文件路径数组的映射，每组至少两个不同文件。内容等价性不能由 Schema 证明。",
+          "propertyNames": { "$ref": "#/$defs/nonEmptyString" },
+          "additionalProperties": {
+            "type": "array",
+            "minItems": 2,
+            "uniqueItems": true,
+            "items": { "$ref": "#/$defs/filePath" }
+          }
+        },
+        "unsafe_functions": {
+          "type": "object",
+          "description": "文件路径 → 危险函数名 → 去重物理行号数组。只在同文件、同名称数组内去重，不跨名称合并。",
+          "propertyNames": { "$ref": "#/$defs/filePath" },
+          "additionalProperties": {
+            "type": "object",
+            "propertyNames": { "$ref": "#/$defs/nonEmptyString" },
+            "additionalProperties": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "$ref": "#/$defs/lineNumber" }
+            }
+          }
+        },
+        "redundant_code": {
+          "type": "object",
+          "description": "文件路径 → 冗余代码块起始物理行号数组。不沿用危险函数的去重约束；条目数不是冗余代码行数。",
+          "propertyNames": { "$ref": "#/$defs/filePath" },
+          "additionalProperties": {
+            "type": "array",
+            "items": { "$ref": "#/$defs/lineNumber" }
+          }
+        },
+        "huge_folders": {
+          "type": "object",
+          "description": "超大目录路径 → 直接子项数；须与完整文件树及本侧生效阈值复算结果一致，不是递归文件总数。",
+          "propertyNames": { "$ref": "#/$defs/directoryPath" },
+          "additionalProperties": { "$ref": "#/$defs/nonNegativeInteger" }
+        }
+      }
+    }
+  }
+}

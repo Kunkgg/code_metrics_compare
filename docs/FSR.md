@@ -542,6 +542,7 @@ JSON Schema 用于表达扫描输出结构，不是 `cmp_*` 对比结果结构�
 - [sample.json](../sample.json)：由初始汇总样例经用户删改并补充元信息及 7 类明细的结构样例；不是正式 JSON Schema、完整一致性夹具或真实扫描结果。
 - [离线单 HTML 技术调查笔记](../.scratch/offline-report/research/offline-html-feasibility.md)：包含取证方式、原文引用、官方仓库链接及研究限制。
 - [Cmetrics 规格核查笔记](../.scratch/offline-report/research/cmetrics-specification.md)：官方字段、阈值、公式歧义及序列化契约的证据边界。
+- [竞品与同类方案分析](competitive-analysis.md)：与本项目技术路线相关的同类实现调研（单文件 HTML 报告、浏览器端大规模数据、度量平台）；借鉴用途，不改变本报告已确认的约束与验证顺序。
 
 外部一手资料（指标定义与技术机制依据，非本项目测试结果）：
 
