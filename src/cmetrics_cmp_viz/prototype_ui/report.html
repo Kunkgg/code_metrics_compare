@@ -1,5 +1,5 @@
 <!doctype html>
-<!-- 一次性 UI 原型：同一份合成扫描数据，三种结构，使用 ?variant=A|B|C 比较；不是正式报告实现。 -->
+<!-- 一次性 UI 原型第二轮：A 的概览与 B 的三栏分析合并；不是正式报告实现。 -->
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8">
@@ -10,11 +10,10 @@
 </head>
 <body>
   <section id="fallback" class="static-fallback">
-    <div class="notice warning"><strong>静态概览 · 模拟数据原型</strong><p id="init-status">交互尚未初始化。若 JavaScript 不可用，只能阅读以下概览，不能搜索、筛选或下钻。</p></div>
+    <div class="notice"><strong>静态概览 · 模拟数据</strong><p id="init-status">交互未启动，搜索和下钻不可用。</p></div>
     @@STATIC@@
   </section>
   <div id="app"></div>
-  <div id="switcher"></div>
   <div id="toast" role="status" aria-live="polite"></div>
   <script type="application/json" id="report-data">@@DATA@@</script>
   <script>const PROTOTYPE_MODE = @@PROTOTYPE_MODE@@;

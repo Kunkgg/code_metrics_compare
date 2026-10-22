@@ -6,35 +6,36 @@ import html
 import json
 import sys
 import webbrowser
+from collections import Counter
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
 from cmetrics_cmp_viz.prototype_data import ROOT, STORY_PATHS, generate_side, make_ledger
-from cmetrics_cmp_viz.schema import round_half_up
+from cmetrics_cmp_viz.schema import is_header_file, round_half_up
 from cmetrics_cmp_viz.validator import validate_l0, validate_l1, validate_l2, validate_l3
 
 MAIN_METRICS = [
-    ("code_size", "非空非注释代码量", "有效代码行"),
-    ("lines_per_file", "平均文件代码行", "有效代码行／文件"),
-    ("lines_per_method", "平均函数代码行", "有效代码行／函数"),
-    ("cyclomatic_complexity_per_method", "平均圈复杂度", "复杂度／函数"),
-    ("code_duplication_ratio", "代码重复率", "%（差值为百分点）"),
-    ("file_duplication_ratio", "文件重复率", "%（差值为百分点）"),
-    ("unsafe_functions_total", "危险函数", "去重位置数"),
-    ("redundant_code_total", "冗余代码", "代码块数"),
-    ("huge_cyclomatic_complexity_total", "超大圈复杂度", "函数数"),
-    ("huge_method_total", "超大函数", "函数数"),
-    ("huge_headerfile_total", "超大头文件", "文件数"),
-    ("huge_non_headerfile_total", "超大源文件", "文件数"),
-    ("huge_folder_total", "超大目录", "目录数"),
+    ("code_size", "有效代码行"),
+    ("lines_per_file", "有效代码行／文件"),
+    ("lines_per_method", "有效代码行／函数"),
+    ("cyclomatic_complexity_per_method", "复杂度／函数"),
+    ("code_duplication_ratio", "%（差值为百分点）"),
+    ("file_duplication_ratio", "%（差值为百分点）"),
+    ("unsafe_functions_total", "去重位置数"),
+    ("redundant_code_total", "代码块数"),
+    ("huge_cyclomatic_complexity_total", "函数数"),
+    ("huge_method_total", "函数数"),
+    ("huge_headerfile_total", "文件数"),
+    ("huge_non_headerfile_total", "文件数"),
+    ("huge_folder_total", "目录数"),
 ]
 LIMITATIONS = [
-    "一次性合成数据原型，不是正式生产报告；production-preview 仅隐藏原型切换器。",
+    "模拟数据原型，未进行真实性能与容量验收。",
     "同文件 parse / func_worker 重名，不提供确定逐函数配对；行号移动仅表示扫描记录进出。",
-    "L0–L3 校验仅针对正常合成夹具；现有 L3 检查内部集合计数、整文件重复及台账结构，不证明真实扫描语义。",
+    "模拟数据已检查内部一致性，不代表真实扫描结果。",
     "重复组号仅在各侧扫描内有效；超大目录仅恢复扫描可见直接成员，不读取磁盘。",
-    "全部小规模明细保留，未做容量、性能、真实数据或跨浏览器验收；异常展示与正常夹具隔离。",
+    "全部明细保留，异常样例不改变原始数据。",
 ]
 
 
@@ -49,6 +50,86 @@ def safe_json(value: Any) -> str:
     for char in ("<", ">", "&", "\u2028", "\u2029"):
         text = text.replace(char, f"\\u{ord(char):04x}")
     return text
+
+
+def load_metric_names() -> dict[str, str]:
+    """以用户维护的根文件为唯一名称来源，容忍 key 两侧的多余引号。"""
+    source = Path(__file__).resolve().parents[2] / "metric_names.md"
+    names = {}
+    for line in source.read_text(encoding="utf-8").splitlines():
+        if ":" in line:
+            key, label = line.split(":", 1)
+            names[key.strip().strip("\"'")] = label.strip()
+    return names
+
+
+def threshold_transitions(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    """按真实超限对象集合计数；任一侧重名的函数键不参与进出判定。"""
+    ambiguous = set()
+    for report in (baseline, current):
+        counts = Counter(
+            (m["file_name"], m["method_name"])
+            for m in report["detail_metrics"]["method_metrics"][:-1]
+        )
+        ambiguous.update(key for key, count in counts.items() if count > 1)
+
+    def objects(report: dict[str, Any]) -> dict[str, set[Any]]:
+        detail = report["detail_metrics"]
+        thresholds = report["summary_metrics"]["huge_threshold"]
+        methods = detail["method_metrics"][:-1]
+
+        def method_key(method: dict[str, Any]) -> tuple[str, str]:
+            return (method["file_name"], method["method_name"])
+
+        return {
+            "hugeHeader": {
+                p
+                for p, v in detail["file_sizes"].items()
+                if is_header_file(p) and v[0] > thresholds["huge_headerfile"]
+            },
+            "hugeSource": {
+                p
+                for p, v in detail["file_sizes"].items()
+                if not is_header_file(p) and v[0] > thresholds["huge_non_headerfile"]
+            },
+            "hugeMethod": {
+                method_key(m)
+                for m in methods
+                if m["nbnc_loc"] > thresholds["huge_method"] and method_key(m) not in ambiguous
+            },
+            "hugeCC": {
+                method_key(m)
+                for m in methods
+                if m["cyclomatic_complexity"] > thresholds["huge_cyclomatic_complexity"]
+                and method_key(m) not in ambiguous
+            },
+            "folders": {
+                p
+                for p, count in detail["huge_folders"].items()
+                if count > thresholds["huge_folder"]
+            },
+        }
+
+    before, after = objects(baseline), objects(current)
+    limited = {"hugeMethod": False, "hugeCC": False}
+    for report in (baseline, current):
+        for method in report["detail_metrics"]["method_metrics"][:-1]:
+            if (method["file_name"], method["method_name"]) not in ambiguous:
+                continue
+            for kind, field, threshold in [
+                ("hugeMethod", "nbnc_loc", "huge_method"),
+                ("hugeCC", "cyclomatic_complexity", "huge_cyclomatic_complexity"),
+            ]:
+                if method[field] > report["summary_metrics"]["huge_threshold"][threshold]:
+                    limited[kind] = True
+    return {
+        kind: {
+            "entered": len(after[kind] - before[kind]),
+            "exited": len(before[kind] - after[kind]),
+            "limited": limited.get(kind, False),
+        }
+        for kind in before
+    }
 
 
 def prepare_data(seed: int) -> tuple[dict[str, Any], dict[str, str]]:
@@ -80,6 +161,8 @@ def prepare_data(seed: int) -> tuple[dict[str, Any], dict[str, str]]:
         hashes[side] = hashlib.sha256(raw.encode("utf-8")).hexdigest()
     meta = {
         "seed": seed,
+        "metricNames": load_metric_names(),
+        "thresholdTransitions": threshold_transitions(baseline, current),
         "generatorVersion": "throwaway-prototype-1",
         "dataFormatVersion": "prototype-1",
         "commonRoot": ROOT,
@@ -137,34 +220,43 @@ def prepare_data(seed: int) -> tuple[dict[str, Any], dict[str, str]]:
 
 
 def static_overview(data: dict[str, Any]) -> str:
-    """无脚本时仍保留身份、13 主指标、口径和已知限制。"""
+    """无脚本时保留主指标与超限进出，不让净数掩盖新增问题。"""
     rows = []
-    for key, label, unit in MAIN_METRICS:
+    types = {
+        "huge_headerfile_total": "hugeHeader",
+        "huge_non_headerfile_total": "hugeSource",
+        "huge_method_total": "hugeMethod",
+        "huge_cyclomatic_complexity_total": "hugeCC",
+        "huge_folder_total": "folders",
+    }
+    for key, unit in MAIN_METRICS:
         before = data["baseline"]["summary_metrics"][key]
         after = data["current"]["summary_metrics"][key]
         delta = round_half_up(Decimal(str(after)) - Decimal(str(before)))
-        values = [
-            label,
-            str(before),
-            str(after),
-            f"{delta:+g}",
-            unit,
-            f"summary_metrics.{key}；正常合成口径一致",
-        ]
-        rows.append(
-            "<tr>" + "".join(f"<td>{html.escape(value)}</td>" for value in values) + "</tr>"
-        )
-    identities = "".join(
-        f"<p><strong>{side}</strong>：{html.escape(json.dumps(identity, ensure_ascii=False))}<br>SHA-256：{data['meta']['sha256'][side]}</p>"
-        for side, identity in data["meta"]["identities"].items()
-    )
+        transition = data["meta"]["thresholdTransitions"].get(types.get(key))
+        movement = "—"
+        if transition:
+            movement = (
+                "新增 — / 退出 —（无法确定配对）"
+                if transition["limited"]
+                else f"新增 {transition['entered']} / 退出 {transition['exited']}"
+            )
+        values = [data["meta"]["metricNames"][key], str(before), str(after), f"{delta:+g}", unit]
+        cells = "".join(f"<td>{html.escape(value)}</td>" for value in values)
+        # 新增项独立突出，净变化为零时仍可见。
+        movement = html.escape(movement)
+        if transition and transition["entered"] and not transition["limited"]:
+            movement = f'<strong class="up">{movement}</strong>'
+        rows.append(f"<tr>{cells}<td>{movement}</td></tr>")
     limits = "".join(f"<li>{html.escape(item)}</li>" for item in LIMITATIONS)
     return (
-        '<section class="static-fallback panel"><h2>静态概览 · 合成原型</h2><p>此概览由 Python 预生成。若交互未启动，仅可阅读此处，搜索、筛选与下钻不可用。</p>'
-        + identities
-        + f"<p>扫描公共根：{ROOT}；种子：{data['meta']['seed']}。两侧正常夹具 L0–L3 实际通过。</p><table><thead><tr><th>指标</th><th>baseline</th><th>current</th><th>差值</th><th>单位</th><th>来源及可比性</th></tr></thead><tbody>"
+        '<section class="static-fallback panel"><h2>静态概览 · 模拟数据</h2>'
+        "<p>若交互未启动，仅可阅读此处，搜索、筛选与下钻不可用。</p>"
+        "<p>上次 v1-demo → 本次 v2-demo</p>"
+        "<table><thead><tr><th>指标</th><th>上次</th><th>本次</th><th>变化</th>"
+        "<th>单位</th><th>超限项进出</th></tr></thead><tbody>"
         + "".join(rows)
-        + f"</tbody></table><h3>已知限制</h3><ul>{limits}</ul></section>"
+        + f"</tbody></table><details><summary>数据说明</summary><ul>{limits}</ul></details></section>"
     )
 
 
@@ -173,7 +265,7 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=20261021)
     parser.add_argument("--output-dir", type=Path, default=Path("output/prototype"))
     parser.add_argument(
-        "--production-preview", action="store_true", help="仅隐藏原型切换器，不代表正式生产"
+        "--production-preview", action="store_true", help="仅隐藏原型调试状态，不代表正式生产"
     )
     parser.add_argument("--open", action="store_true", help="使用默认浏览器打开 file:// 报告")
     args = parser.parse_args()

@@ -12,7 +12,7 @@ THRESHOLDS = {
     "huge_non_headerfile": 2000,
     "huge_method": 50,
     "huge_cyclomatic_complexity": 20,
-    "huge_folder": 10,
+    "huge_folder": 50,
 }
 STORY_PATHS = {
     "parser": f"{ROOT}/src/core/parser.c",
@@ -20,6 +20,8 @@ STORY_PATHS = {
     "utilsShrink": f"{ROOT}/src/utils/shrink.c",
     "shared": f"{ROOT}/src/core/shared.c",
     "bulk": f"{ROOT}/src/bulk",
+    "folderEntered": f"{ROOT}/src/expanded",
+    "folderExited": f"{ROOT}/src/trimmed",
 }
 
 
@@ -104,7 +106,7 @@ def generate_side(seed: int, current: bool) -> tuple[dict[str, Any], dict[str, A
         "include/api.h": 540 if current else 480,
         "include/legacy.h": 480 if current else 540,
     }
-    counts.update({f"src/bulk/unit_{i:02}.c": rng.randint(180, 360) for i in range(18)})
+    counts.update({f"src/bulk/unit_{i:02}.c": rng.randint(180, 360) for i in range(49)})
     counts.update(
         {
             f"src/{area}/module_{i:02}.c": rng.randint(180, 360)
@@ -113,7 +115,13 @@ def generate_side(seed: int, current: bool) -> tuple[dict[str, Any], dict[str, A
         }
     )
     counts["src/bulk/nested/leaf.c"] = 200
-    counts["src/bulk/added.c" if current else "src/retired.c"] = 220
+    # 两侧使用相同次数、相同顺序的随机调用；新增退出成员采用固定大小。
+    for i in range(2):
+        counts[f"src/bulk/{'added' if current else 'retired'}_{i:02}.c"] = 220
+    for area in ("expanded", "trimmed"):
+        counts.update({f"src/{area}/unit_{i:02}.c": 220 for i in range(50)})
+        if (area == "expanded") == current:
+            counts.update({f"src/{area}/extra_{i:02}.c": 220 for i in range(2)})
     models: dict[str, Any] = {}
     methods = []
     for relative, count in sorted(counts.items()):
@@ -147,7 +155,7 @@ def generate_side(seed: int, current: bool) -> tuple[dict[str, Any], dict[str, A
             )
             offset += length + 5
     parser, shared = STORY_PATHS["parser"], STORY_PATHS["shared"]
-    # shared 的重复覆盖保持 40 行，parser 由 20 增至 40；组号仅在各扫描内有意义。
+    # shared 的重复覆盖保持 40 行，parser 首组由 20 增至 40；组号仅在各扫描内有意义。
     groups = {
         "code_duplication_91" if current else "code_duplication_1": [
             {
@@ -163,6 +171,15 @@ def generate_side(seed: int, current: bool) -> tuple[dict[str, Any], dict[str, A
             {"file_name": shared, "start_line": 21, "code_duplication": 20},
             {"file_name": shared, "start_line": 61, "code_duplication": 20},
         ]
+    # parser 关联两个独立组，每组有不同关联文件；不由有效长度推算物理结束行。
+    groups["code_duplication_107" if current else "code_duplication_7"] = [
+        {"file_name": parser, "start_line": 201, "code_duplication": 30 if current else 20},
+        {
+            "file_name": STORY_PATHS["utilsGrow" if current else "utilsShrink"],
+            "start_line": 101,
+            "code_duplication": 30 if current else 20,
+        },
+    ]
     dup_files = {
         "41" if current else "3": [f"{ROOT}/src/codec/module_00.c", f"{ROOT}/src/codec/module_01.c"]
     }
