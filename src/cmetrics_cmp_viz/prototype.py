@@ -7,12 +7,12 @@ import json
 import sys
 import webbrowser
 from collections import Counter
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
 from cmetrics_cmp_viz.prototype_data import ROOT, STORY_PATHS, generate_side, make_ledger
-from cmetrics_cmp_viz.schema import is_header_file, round_half_up
+from cmetrics_cmp_viz.schema import is_header_file
 from cmetrics_cmp_viz.validator import validate_l0, validate_l1, validate_l2, validate_l3
 
 MAIN_METRICS = [
@@ -219,6 +219,15 @@ def prepare_data(seed: int) -> tuple[dict[str, Any], dict[str, str]]:
     return {"baseline": baseline, "current": current, "meta": meta}, artifacts
 
 
+def display_number(value: int | float | Decimal, *, decimal: bool, delta: bool = False) -> str:
+    """显示时按两位四舍五入；计数保持整数，不改变输入精度。"""
+    number = Decimal(str(value)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    if not number:
+        number = abs(number)
+    digits = 2 if decimal else 0
+    return ("+" if delta and number > 0 else "") + f"{number:,.{digits}f}"
+
+
 def static_overview(data: dict[str, Any]) -> str:
     """无脚本时保留主指标与超限进出，不让净数掩盖新增问题。"""
     rows = []
@@ -232,7 +241,8 @@ def static_overview(data: dict[str, Any]) -> str:
     for key, unit in MAIN_METRICS:
         before = data["baseline"]["summary_metrics"][key]
         after = data["current"]["summary_metrics"][key]
-        delta = round_half_up(Decimal(str(after)) - Decimal(str(before)))
+        delta = Decimal(str(after)) - Decimal(str(before))
+        decimal = key.endswith(("_ratio", "_kloc", "_per_file", "_per_method"))
         transition = data["meta"]["thresholdTransitions"].get(types.get(key))
         movement = "—"
         if transition:
@@ -241,7 +251,14 @@ def static_overview(data: dict[str, Any]) -> str:
                 if transition["limited"]
                 else f"新增 {transition['entered']} / 退出 {transition['exited']}"
             )
-        values = [data["meta"]["metricNames"][key], str(before), str(after), f"{delta:+g}", unit]
+        suffix = "%" if key.endswith("_ratio") else ""
+        values = [
+            data["meta"]["metricNames"][key],
+            display_number(before, decimal=decimal) + suffix,
+            display_number(after, decimal=decimal) + suffix,
+            display_number(delta, decimal=decimal, delta=True) + (" 个百分点" if suffix else ""),
+            unit,
+        ]
         cells = "".join(f"<td>{html.escape(value)}</td>" for value in values)
         # 新增项独立突出，净变化为零时仍可见。
         movement = html.escape(movement)
@@ -250,10 +267,10 @@ def static_overview(data: dict[str, Any]) -> str:
         rows.append(f"<tr>{cells}<td>{movement}</td></tr>")
     limits = "".join(f"<li>{html.escape(item)}</li>" for item in LIMITATIONS)
     return (
-        '<section class="static-fallback panel"><h2>静态概览 · 模拟数据</h2>'
+        '<section class="static-fallback panel"><h2>静态概览 / 模拟数据</h2>'
         "<p>若交互未启动，仅可阅读此处，搜索、筛选与下钻不可用。</p>"
-        "<p>上次 v1-demo → 本次 v2-demo</p>"
-        "<table><thead><tr><th>指标</th><th>上次</th><th>本次</th><th>变化</th>"
+        "<p>基线 v1-demo → 当前 v2-demo</p>"
+        "<table><thead><tr><th>指标</th><th>基线</th><th>当前</th><th>变化</th>"
         "<th>单位</th><th>超限项进出</th></tr></thead><tbody>"
         + "".join(rows)
         + f"</tbody></table><details><summary>数据说明</summary><ul>{limits}</ul></details></section>"
@@ -296,7 +313,7 @@ def main() -> None:
         if args.open:
             webbrowser.open(destination.resolve().as_uri())
     except (OSError, ValueError) as exc:
-        print(f"构建失败，未发布本次 HTML：{exc}", file=sys.stderr)
+        print(f"构建失败，未发布当前 HTML：{exc}", file=sys.stderr)
         raise SystemExit(1) from exc
 
 

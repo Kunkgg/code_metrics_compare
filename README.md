@@ -43,7 +43,7 @@ uv run python -m cmetrics_cmp_viz.prototype --open
 当前按用户反馈合并 A 的概览与 B 的三栏分析，取消 C 和方案切换栏。首轮三方案保留在提交 `7a5edae`。
 
 - **概览**：差值优先，新增超限单独突出；点击卡片进入对应明细。
-- **分析**：目录、明细、证据三栏联查；重复片段与目录成员使用加宽详情。
+- **分析**：顶部按“规模与复杂度 / 重复与问题 / 超限指标”平铺 12 个指标入口；目录、明细、证据三栏联查，重复片段与目录成员使用加宽详情。
 - **全部指标**：查看 33 项汇总及必要最大值；技术来源与阈值默认折叠。
 
 也可直接打开 `?view=overview`、`?view=workspace`、`?view=metrics`。状态仅保存在内存，刷新不保存查询条件。页面末尾折叠的“原型状态”用于核对交互条件。
@@ -52,6 +52,7 @@ uv run python -m cmetrics_cmp_viz.prototype --open
 
 - 默认种子 `20261021`，两侧各 **181 个文件、545 个普通函数**；另生成两侧 JSON、内部有效行模型与变化台账。
 - 指标中文名统一读取根目录 [`metric_names.md`](metric_names.md)，静态概览与交互页面使用同一映射；不改变原有统计公式。
+- 两侧统一称为“基线 / 当前”。小数四舍五入到两位，均值、密度与比例保留尾零，计数保持整数；只调整显示，比较和筛选仍使用原始精度。
 - 五类超大指标均有“新增 1、退出 1、总数不变”的样例。卡片仍突出新增 1，点击默认查看新增超限对象，不以净数抵消新增。
 - 超大目录阈值为 **50，严格大于才超限**。`src/expanded` 为 50 → 52，`src/trimmed` 为 52 → 50；`src/bulk` 为 52 → 52，但有新增 2、移出 2 个直接成员。
 - 重复片段支持两侧独立选组、当前文件高亮、关联文件变化及位置复制。`parser.c` 重复行 40 → 70，关联 `shared.c` 保持 40 → 40；不会按组号匹配前后版本。
@@ -69,7 +70,7 @@ uv run python -m cmetrics_cmp_viz.prototype --seed 42 --output-dir output/protot
 uv run python -m cmetrics_cmp_viz.prototype --production-preview --output-dir output/prototype-preview
 ```
 
-源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。本轮选择、八项反馈和走查记录见 [合并原型 issue](.scratch/report-ui-prototype/issues/02-combined-data-first.md)；首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
+源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。最新显示规则及分类入口见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
 
 ## 模拟数据生成与校验 (P0)
 
