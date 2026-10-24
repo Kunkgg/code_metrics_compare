@@ -70,7 +70,7 @@
       report.summary_metrics.huge_cyclomatic_complexity_ratio=count/report.summary_metrics.methods_total*100;
       report.detail_metrics.huge_folders[DATA.meta.storyPaths.bulk]+=3;
     }
-    const root=`${DATA.meta.commonRoot}/`,rel=path=>path.startsWith(root)?path.slice(root.length):path;
+    const root=`${DATA.meta.commonRoot}/`,rel=path=>path===DATA.meta.commonRoot?'':path.startsWith(root)?path.slice(root.length):path;
     const sides={};
     for(const side of ['baseline','current']) {
       const report=reports[side],d=report.detail_metrics;
@@ -104,10 +104,10 @@
     return {sides,fileRows,methodRows,dirs:[...dirs].sort(),folderRows,rel,limited};
   }
   function directMembers(side,path) {
-    const members=new Map();
-    for(const p of Object.keys(model.sides[side].files))if(p.startsWith(`${path}/`)) {
-      const parts=p.slice(path.length+1).split('/');
-      const member={name:parts[0],path:`${path}/${parts[0]}`,type:parts.length===1?'文件':'目录'};
+    const members=new Map(),prefix=path?`${path}/`:'';
+    for(const p of Object.keys(model.sides[side].files))if(p.startsWith(prefix)) {
+      const parts=p.slice(prefix.length).split('/');
+      const member={name:parts[0],path:`${prefix}${parts[0]}`,type:parts.length===1?'文件':'目录'};
       members.set(JSON.stringify([member.name,member.type]),member);
     }
     return [...members.values()].sort((a,b)=>a.name.localeCompare(b.name));
@@ -180,8 +180,8 @@
     return labels.join(' ');
   }
   function queriedRows() {
-    let rows=rowsFor(state.type);const allCount=rows.length,scope=state.searchScope==='all'?'':state.directory;
-    rows=rows.filter(r=>inDirectory(r.path,scope));const scopeCount=rows.length;
+    let rows=rowsFor(state.type);const allCount=rows.length,scope=state.exactFile||(state.searchScope==='all'?'':state.directory);
+    rows=rows.filter(r=>state.exactFile?r.path===state.exactFile:inDirectory(r.path,scope));const scopeCount=rows.length;
     const q=state.query.trim().toLowerCase();if(q)rows=rows.filter(r=>`${r.path} ${r.name}`.toLowerCase().includes(q));
     if(state.status==='changes')rows=rows.filter(r=>r.changed);else if(state.status!=='all')rows=rows.filter(r=>r.flags.includes(state.status)&&(!thresholdKey(state.type)||!['entered','exited'].includes(state.status)||!r.flags.includes('incomparable')));
     const min=state.min===''?null:Number(state.min),max=state.max===''?null:Number(state.max);
@@ -243,7 +243,7 @@
     const slice=q.rows.slice((state.page-1)*state.pageSize,state.page*state.pageSize),key=thresholdKey(state.type);
     const additive=['code','duplication','sourceDuplication','methodLines','cc'].includes(state.type),scope=additive?aggregate(q.scope,state.type):null;
     const detailLabel={code:'文件代码行',duplication:'重复代码行',sourceDuplication:'源代码重复行',methodLines:'函数代码行',cc:'圈复杂度'}[state.type];
-    return `<div class="scope-title"><strong>${esc(q.scope||'全部目录')}</strong><span class="spacer"></span><span class="muted">${q.rows.length} 项</span></div>${controls()}${key?`<div class="threshold-note">超限阈值 <b>&gt; ${model.sides.baseline.summary.huge_threshold[key]}${model.sides.baseline.summary.huge_threshold[key]!==model.sides.current.summary.huge_threshold[key]?` → > ${model.sides.current.summary.huge_threshold[key]}`:''}</b>${state.type==='folders'?' 个直接成员':''}</div>`:''}${scope?`<div class="scope-total" title="当前目录完整数据，不受表内筛选影响${['cc','methodLines'].includes(state.type)?'；同名函数按两侧原始值各自求和':''}"><span>目录${detailLabel}合计</span><b>${fmt(scope.baseline.value)}</b><span>→</span><b>${fmt(scope.current.value)}</b><span class="${cls(scope.delta)}">${deltaText(scope.delta)}</span>${scope.current.valid!==scope.current.count?badge(`${scope.current.valid}/${scope.current.count} 有效`,'warning'):''}</div>`:''}<div class="table-wrap"><table class="data-table"><thead><tr><th>${state.type==='folders'?'目录':state.type==='cc'||state.type==='methodLines'||state.type==='hugeMethod'||state.type==='hugeCC'?'函数':'对象'}</th><th class="num">基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</th><th class="num">当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</th><th class="num">变化</th><th>标记</th></tr></thead><tbody>${slice.length?slice.map(row=>`<tr class="${state.selected===row.id?'selected':''}"><td><button class="row-title ${row.kind==='file'||row.kind==='folder'?'mono':''}" data-action="select" data-value="${esc(row.id)}">${esc(row.kind==='file'||row.kind==='folder'?row.path:row.name)}</button>${row.kind==='method'?`<span class="row-subtitle mono">${esc(row.path)}</span>`:['unsafe','redundant'].includes(row.kind)?`<span class="row-subtitle mono">${esc(row.path)} : ${row.line}</span>`:row.kind==='folder'?`<span class="row-subtitle"><span class="${row.addedMembers?'up':''}">新增 ${row.addedMembers}</span> / 移出 ${row.removedMembers}</span>`:''}</td><td class="num">${row.ambiguous?`${row.before.length} 条`:fmt(row.b)}</td><td class="num">${row.ambiguous?`${row.after.length} 条`:fmt(row.c)}</td><td class="num ${row.flags.includes('incomparable')?'muted':cls(row.delta)}">${deltaText(row.delta)}</td><td><div class="status-list">${rowStatus(row)}</div></td></tr>`).join(''):'<tr><td colspan="5" class="empty">无匹配数据 <button class="text" data-action="reset">重置</button></td></tr>'}</tbody></table></div><div class="pagination"><span>${q.rows.length} 项</span><div class="row"><button data-action="page" data-value="-1" ${state.page===1?'disabled':''} aria-label="上一页">←</button><span>${state.page} / ${pages}</span><button data-action="page" data-value="1" ${state.page===pages?'disabled':''} aria-label="下一页">→</button></div></div>`;
+    return `<div class="scope-title"><strong>${esc(q.scope||'全部目录')}</strong><span class="spacer"></span><span class="muted">${q.rows.length} 项</span></div>${controls()}${key?`<div class="threshold-note">超限阈值 <b>&gt; ${model.sides.baseline.summary.huge_threshold[key]}${model.sides.baseline.summary.huge_threshold[key]!==model.sides.current.summary.huge_threshold[key]?` → > ${model.sides.current.summary.huge_threshold[key]}`:''}</b>${state.type==='folders'?' 个直接成员':''}</div>`:''}${scope?`<div class="scope-total" title="当前目录完整数据，不受表内筛选影响${['cc','methodLines'].includes(state.type)?'；同名函数按两侧原始值各自求和':''}"><span>${state.exactFile?'':'目录'}${detailLabel}合计</span><b>${fmt(scope.baseline.value)}</b><span>→</span><b>${fmt(scope.current.value)}</b><span class="${cls(scope.delta)}">${deltaText(scope.delta)}</span>${scope.current.valid!==scope.current.count?badge(`${scope.current.valid}/${scope.current.count} 有效`,'warning'):''}</div>`:''}<div class="table-wrap"><table class="data-table"><thead><tr><th>${state.type==='folders'?'目录':state.type==='cc'||state.type==='methodLines'||state.type==='hugeMethod'||state.type==='hugeCC'?'函数':'对象'}</th><th class="num">基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</th><th class="num">当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</th><th class="num">变化</th><th>标记</th></tr></thead><tbody>${slice.length?slice.map(row=>`<tr class="${state.selected===row.id?'selected':''}"><td><button class="row-title ${row.kind==='file'||row.kind==='folder'?'mono':''}" data-action="select" data-value="${esc(row.id)}">${esc(row.kind==='file'||row.kind==='folder'?row.path:row.name)}</button>${row.kind==='method'?`<span class="row-subtitle mono">${esc(row.path)}</span>`:['unsafe','redundant'].includes(row.kind)?`<span class="row-subtitle mono">${esc(row.path)} : ${row.line}</span>`:row.kind==='folder'?`<span class="row-subtitle"><span class="${row.addedMembers?'up':''}">新增 ${row.addedMembers}</span> / 移出 ${row.removedMembers}</span>`:''}</td><td class="num">${row.ambiguous?`${row.before.length} 条`:fmt(row.b)}</td><td class="num">${row.ambiguous?`${row.after.length} 条`:fmt(row.c)}</td><td class="num ${row.flags.includes('incomparable')?'muted':cls(row.delta)}">${deltaText(row.delta)}</td><td><div class="status-list">${rowStatus(row)}</div></td></tr>`).join(''):'<tr><td colspan="5" class="empty">无匹配数据 <button class="text" data-action="reset">重置</button></td></tr>'}</tbody></table></div><div class="pagination"><span>${q.rows.length} 项</span><div class="row"><button data-action="page" data-value="-1" ${state.page===1?'disabled':''} aria-label="上一页">←</button><span>${state.page} / ${pages}</span><button data-action="page" data-value="1" ${state.page===pages?'disabled':''} aria-label="下一页">→</button></div></div>`;
   }
   function locationText(row) {
     const side=row.after&&(row.kind==='method'?row.after.length:true)?'Current':'Baseline';
@@ -293,11 +293,95 @@
     else content+='<p class="muted small">位置变化不等同于问题新增或修复。</p>';
     return `<div class="evidence"><div class="evidence-head"><div class="row between"><h2 class="object-path mono">${esc(row.kind==='method'?row.name:row.path)}</h2>${state.trail.length?'<button class="text" data-action="back">← 返回</button>':''}</div>${row.kind==='method'?`<p class="mono muted small">${esc(row.path)}</p>`:''}<div class="status-list">${rowStatus(row)}</div></div><div class="pair-values"><div><small>基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':fmt(row.b)}</strong></div><span class="pair-arrow">→</span><div><small>当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':fmt(row.c)}</strong></div><div class="pair-delta ${row.flags.includes('incomparable')?'muted':cls(row.delta)}"><small>变化</small><strong>${deltaText(row.delta)}</strong></div></div>${content}${copyBlock(row)}</div>`;
   }
+  function fractionObjects(side,scope,key) {
+    const s=model.sides[side],[numerator,denominator]=metricFraction(key),objects=new Map(),issues=[];
+    const type=analysisMetrics.find(([metric])=>metric===key)[1],threshold=thresholdKey(type),limit=s.summary.huge_threshold[threshold];
+    const exceeds=value=>Number.isFinite(value)&&Number.isFinite(limit)?Number(value>limit):null;
+    if(denominator==='methods_total') {
+      for(const method of s.methods.filter(method=>inDirectory(method.path,scope))) {
+        const item=objects.get(method.path)||{numerator:0,denominator:0};
+        const value=numerator==='method_lines'?method.nbnc_loc:numerator==='cyclomatic_complexity_total'?method.cyclomatic_complexity:exceeds(method[type==='hugeCC'?'cyclomatic_complexity':'nbnc_loc']);
+        item.numerator=Number.isFinite(item.numerator)&&Number.isFinite(value)?item.numerator+value:null;
+        item.denominator++;objects.set(method.path,item);
+      }
+    } else if(denominator==='folders_total') {
+      const dirs=new Set(Object.keys(s.files).length?['']:[]);
+      for(const path of Object.keys(s.files)){const parts=path.split('/');for(let i=1;i<parts.length;i++)dirs.add(parts.slice(0,i).join('/'));}
+      const measured=new Map([...dirs].filter(path=>inDirectory(path,scope)).map(path=>[path,directMembers(side,path).length]));
+      for(const [path,members] of measured)objects.set(path,{numerator:exceeds(members),denominator:1});
+      const declared=Object.entries(s.folders).filter(([path])=>inDirectory(path,scope));
+      if(declared.some(([path,members])=>members!==measured.get(path)||!(members>limit))||[...measured].some(([path,members])=>members>limit&&!(path in s.folders)))issues.push('目录成员或超限清单不完整');
+    } else {
+      const repeated=new Set(s.dupfiles.flatMap(group=>group.members));
+      for(const [path,values] of Object.entries(s.files).filter(([path])=>inDirectory(path,scope))) {
+        let amount;
+        if(numerator==='code_size')amount=values[0];
+        else if(numerator==='code_duplication_total'||numerator==='non_hfile_code_duplication_total')amount=numerator.startsWith('non_hfile')&&isHeader(path)?0:values[2];
+        else if(numerator==='file_duplication_total'||numerator==='non_hfile_duplication_total')amount=Number(repeated.has(path)&&(!numerator.startsWith('non_hfile')||!isHeader(path)));
+        else amount=(type==='hugeHeader'?isHeader(path):!isHeader(path))?exceeds(values[0]):0;
+        objects.set(path,{numerator:amount,denominator:denominator==='code_size'?values[0]:1});
+      }
+    }
+    return {objects,issues};
+  }
+  function fractionChange(scope,key) {
+    const rows=model.fileRows.filter(row=>inDirectory(row.path,scope)),sides={},sets={},issues=[];
+    const [numerator,denominator]=metricFraction(key),ratio=key.endsWith('_ratio'),scale=ratio?100:1;
+    const type=analysisMetrics.find(([metric])=>metric===key)[1],threshold=thresholdKey(type);
+    const sumKnown=values=>values.every(Number.isFinite)?total(values,value=>value):null;
+    if(threshold) {
+      const limits=['baseline','current'].map(side=>model.sides[side].summary.huge_threshold[threshold]);
+      if(limits.some(limit=>!Number.isFinite(limit)))issues.push('超限阈值未知');
+      else if(limits[0]!==limits[1])issues.push('超限阈值变化，不可直接比较');
+    }
+    for(const side of ['baseline','current']) {
+      const label=side==='baseline'?'基线':'当前',summary=model.sides[side].summary;
+      const measured=fractionObjects(side,scope,key);sets[side]=measured.objects;issues.push(...measured.issues.map(issue=>`${label}${issue}`));
+      const values=[...measured.objects.values()],amount=sumKnown(values.map(item=>item.numerator)),count=sumKnown(values.map(item=>item.denominator));
+      const detail={numerator:amount,denominator:count,value:amount!=null&&count>0?amount/count*scale:null};
+      const shown=scope?detail:{numerator:summary[numerator],denominator:summary[denominator],value:summary[key]};
+      sides[side]=shown;
+      if(!Number.isFinite(amount)||!Number.isFinite(count)||!Number.isFinite(shown.numerator)||!Number.isFinite(shown.denominator))issues.push(`${label}数据未知`);
+      else if(shown.denominator===0)issues.push(`${label}${metricName(denominator)}为零，${ratio?'比例':'均值'}不适用`);
+      else if(!Number.isFinite(shown.value))issues.push(`${label}${ratio?'比例':'均值'}未知`);
+      else if(!scope&&(shown.numerator!==amount||shown.denominator!==count||detail.value==null||Math.abs(shown.value-detail.value)>1e-6))issues.push(`${label}汇总与明细不一致`);
+    }
+    const continuing=rows.filter(row=>row.before&&row.after),added=rows.filter(row=>!row.before&&row.after),removed=rows.filter(row=>row.before&&!row.after);
+    const members=[
+      {label:'存续文件',count:continuing.length,lines:sumKnown(continuing.map(row=>Number.isFinite(row.before[0])&&Number.isFinite(row.after[0])?row.after[0]-row.before[0]:null))},
+      {label:'新增文件',count:added.length,lines:sumKnown(added.map(row=>row.after[0]))},
+      {label:'移出文件',count:removed.length,lines:sumKnown(removed.map(row=>Number.isFinite(row.before[0])?-row.before[0]:null))}
+    ];
+    const b=sides.baseline,c=sides.current;
+    // 固定顺序的算术分解；对象贡献相加等于整体变化，不据此推断业务因果。
+    const effects=issues.length?null:{numerator:(c.numerator-b.numerator)/b.denominator*scale,denominator:c.numerator*(b.denominator-c.denominator)/(b.denominator*c.denominator)*scale,delta:(c.numerator/c.denominator-b.numerator/b.denominator)*scale};
+    const contributions=effects?union(sets.baseline.keys(),sets.current.keys()).map(path=>{
+      const before=sets.baseline.get(path)||{numerator:0,denominator:0},after=sets.current.get(path)||{numerator:0,denominator:0};
+      const n=(after.numerator-before.numerator)/b.denominator*scale,d=c.numerator*(before.denominator-after.denominator)/(b.denominator*c.denominator)*scale;
+      return {path,numerator:n,denominator:d,value:n+d,before,after};
+    }).filter(item=>item.numerator!==0||item.denominator!==0).sort((a,b)=>Math.abs(b.value)-Math.abs(a.value)||Math.abs(b.numerator)+Math.abs(b.denominator)-Math.abs(a.numerator)-Math.abs(a.denominator)||a.path.localeCompare(b.path)):[];
+    const transitions=threshold?rowsFor(type).filter(row=>inDirectory(row.path,scope)):[];
+    return {...sides,members,issues,effects,contributions,numerator,denominator,ratio,threshold,transitions:{limited:issues.length>0||transitions.some(row=>row.ambiguous||row.flags.includes('incomparable')||row.flags.includes('unknown')),entered:transitions.filter(row=>row.flags.includes('entered')).length,exited:transitions.filter(row=>row.flags.includes('exited')).length}};
+  }
+  function contributionTable(change,unit) {
+    const items=change.contributions,pages=Math.max(1,Math.ceil(items.length/5));state.contributionPage=Math.min(state.contributionPage,pages);
+    const shown=items.slice((state.contributionPage-1)*5,state.contributionPage*5),folder=change.denominator==='folders_total';
+    return `<div class="fraction-contributions"><div class="panel-head"><h3>${folder?'目录':'文件'}贡献</h3><span class="small muted">按合计影响排序 / ${unit}</span></div><div class="table-wrap"><table class="contribution-table"><thead><tr><th>${folder?'目录':'文件'}</th><th class="num" title="${esc(metricName(change.numerator))}变化带来的贡献">分子</th><th class="num" title="${esc(metricName(change.denominator))}变化带来的贡献">分母</th><th class="num">合计</th></tr></thead><tbody>${shown.length?shown.map(item=>`<tr><td><button class="row-title mono" data-action="contributor" data-kind="${folder?'folder':'file'}" data-value="${esc(item.path)}" title="${esc(item.path||'项目根目录')}">${esc(item.path||'项目根目录')}</button></td><td class="num ${cls(item.numerator)}">${deltaText(item.numerator,true)}</td><td class="num ${cls(item.denominator)}">${deltaText(item.denominator,true)}</td><td class="num ${cls(item.value)}">${deltaText(item.value,true)}</td></tr>`).join(''):`<tr><td colspan="4" class="empty">${change.issues.length?'数据不可比较，无法计算贡献':'分子与分母均无变化'}</td></tr>`}</tbody></table></div><div class="pagination"><span>${change.issues.length?'贡献未计算':`${items.length} 个${folder?'目录':'文件'}`}</span><div class="row"><button data-action="contribution-page" data-value="-1" ${state.contributionPage===1?'disabled':''} aria-label="贡献上一页">←</button><span>${state.contributionPage} / ${pages}</span><button data-action="contribution-page" data-value="1" ${state.contributionPage===pages?'disabled':''} aria-label="贡献下一页">→</button></div></div></div>`;
+  }
+  function metricExplanation() {
+    if(!metricFraction(state.metric))return '';
+    const scope=state.searchScope==='all'?'':state.directory,change=fractionChange(scope,state.metric),b=change.baseline,c=change.current,e=change.effects;
+    const kind=change.ratio?'比例':'均值',unit=change.ratio?'个百分点':state.metric==='cyclomatic_complexity_per_method'?'复杂度 / 函数':state.metric==='lines_per_method'?'行 / 函数':'行 / 文件',t=change.transitions;
+    const numeratorLabel=metricName(change.numerator),denominatorLabel=metricName(change.denominator);
+    const numeratorUnit=['code_size','method_lines','code_duplication_total','non_hfile_code_duplication_total'].includes(change.numerator)?'行':change.numerator==='cyclomatic_complexity_total'?'复杂度':'个';
+    const entries=[['numerator',numeratorLabel,numeratorUnit],['denominator',denominatorLabel,change.denominator==='code_size'?'行':'个'],['value',metricName(state.metric),change.ratio?'%':unit]];
+    return `<section class="average-explanation panel" aria-label="${esc(metricName(state.metric))}变化"><div class="panel-head"><h2>${kind}变化与贡献</h2><span class="small muted average-scope" title="包含范围内全部对象，不受下方搜索、状态筛选或分页影响">${scope?`${esc(scope)} / 含子目录`:'全报告汇总'}</span></div><div class="average-layout"><div><div class="table-wrap"><table class="average-summary"><thead><tr><th>指标</th><th class="num">基线</th><th class="num">当前</th><th class="num">变化</th></tr></thead><tbody>${entries.map(([field,label,fieldUnit])=>`<tr><td>${esc(label)} <small class="muted">${fieldUnit}</small></td><td class="num">${fmt(b[field],field==='value')}${field==='value'&&change.ratio&&b[field]!=null?'%':''}</td><td class="num">${fmt(c[field],field==='value')}${field==='value'&&change.ratio&&c[field]!=null?'%':''}</td><td class="num ${change.issues.length?'muted':cls(knownDelta(b[field],c[field]))}">${deltaText(knownDelta(b[field],c[field]),field==='value')}${field==='value'&&change.ratio?' 个百分点':''}</td></tr>`).join('')}</tbody></table></div>${change.threshold?`<div class="average-members"><span>新增超限 <b class="${t.entered&&!t.limited?'up':''}">${t.limited?'—':t.entered}</b></span><span>退出超限 <b>${t.limited?'—':t.exited}</b></span></div>`:state.metric==='lines_per_file'?`<div class="average-members" title="按两侧扫描路径集合识别，不等同于磁盘创建或删除">${change.members.map(m=>`<span>${m.label} <b>${m.count}</b><span class="${cls(m.lines)}">${deltaText(m.lines)} 行</span></span>`).join('')}</div>`:''}</div><div class="average-effects"><div class="panel-head"><h3>变化贡献</h3><span class="small muted">${unit}</span></div>${change.issues.length?`<div class="notice">${change.issues.map(esc).join('；')}，无法可靠拆分${kind}变化。</div>`:`<div class="average-effect"><span>${numeratorLabel}变化</span><strong class="${cls(e.numerator)}">${deltaText(e.numerator,true)}</strong></div><div class="average-effect"><span>${denominatorLabel}变化</span><strong class="${cls(e.denominator)}">${deltaText(e.denominator,true)}</strong></div><div class="average-effect total"><span>${kind}变化</span><strong class="${cls(e.delta)}">${deltaText(e.delta,true)}</strong></div>`}</div>${contributionTable(change,unit)}</div><details class="average-formula"><summary>计算口径</summary><p>${esc(metricName(state.metric))} = ${numeratorLabel} ÷ ${denominatorLabel}${change.ratio?' × 100%':''}。</p><p>先固定基线${denominatorLabel}，计算${numeratorLabel}变化的影响；再按当前${numeratorLabel}，计算${denominatorLabel}变化的影响。分子贡献按对象分子变化分配，分母贡献按对象分母变化分配；函数类指标按文件汇总。列表按合计贡献的绝对值排序，保留相互抵消的贡献。</p><p>两项贡献按原始值相加得到${kind}变化，各自四舍五入后显示值相加可能相差 0.01。${scope?`目录范围从两侧完整明细分别重算。${change.denominator==='folders_total'?'总目录数包含所选目录本身及其可见子目录。':''}`:'左侧保留报告汇总原值，贡献计算前核对明细。'}</p></details></section>`;
+  }
   function workspace() {
     const key=state.metric,b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],ratio=key.endsWith('_ratio'),fraction=metricFraction(key);
     const issue=summaryStatus(key)||(fraction&&['baseline','current'].some(side=>model.sides[side].summary[fraction[1]]===0)?'分母为零 / 不适用':'');
     const formula=fraction?['baseline','current'].map(side=>{const s=model.sides[side].summary;return `${side==='baseline'?'基线':'当前'}：${metricName(fraction[0])} ${fmt(s[fraction[0]])} ÷ ${metricName(fraction[1])} ${fmt(s[fraction[1]])}${ratio?' × 100%':''}`;}).join('；'):'';
-    return `<div class="analysis-heading"><div class="row"><h1>分析</h1><span class="active-metric">${esc(metricName(key))}</span>${issue?badge(issue,'warning'):''}</div><div class="analysis-total" title="${esc(`全报告指标${formula?`；${formula}`:''}`)}"><span>基线 <b>${fmt(b,decimalMetric(key))}${ratio?'%':''}</b></span><span>→</span><span>当前 <b>${fmt(c,decimalMetric(key))}${ratio?'%':''}</b></span><b class="${issue?'muted':cls(knownDelta(b,c))}">${deltaText(knownDelta(b,c),decimalMetric(key))}${ratio?' 个百分点':''}</b></div></div><nav class="analysis-metrics panel" aria-label="分析指标">${analysisCategories.map(([label,metrics])=>`<div class="metric-category" role="group" aria-label="${label}"><h2>${label}</h2><div class="metric-options">${metrics.map(([metric])=>`<button type="button" data-action="analysis-type" data-value="${metric}" aria-pressed="${state.metric===metric}" class="${state.metric===metric?'active':''}">${esc(metricName(metric))}</button>`).join('')}</div></div>`).join('')}</nav><div class="analysis-grid ${['duplication','sourceDuplication','folders','dupfiles','sourceDupfiles'].includes(state.type)?'wide-evidence':''}"><aside class="panel tree-panel">${tree()}</aside><section class="panel table-panel">${table()}</section><aside class="panel evidence-panel">${evidence()}</aside></div>`;
+    return `<div class="analysis-heading"><div class="row"><h1>分析</h1><span class="active-metric">${esc(metricName(key))}</span>${issue?badge(issue,'warning'):''}</div><div class="analysis-total" title="${esc(`全报告指标${formula?`；${formula}`:''}`)}"><span>基线 <b>${fmt(b,decimalMetric(key))}${ratio?'%':''}</b></span><span>→</span><span>当前 <b>${fmt(c,decimalMetric(key))}${ratio?'%':''}</b></span><b class="${issue?'muted':cls(knownDelta(b,c))}">${deltaText(knownDelta(b,c),decimalMetric(key))}${ratio?' 个百分点':''}</b></div></div><nav class="analysis-metrics panel" aria-label="分析指标">${analysisCategories.map(([label,metrics])=>`<div class="metric-category" role="group" aria-label="${label}"><h2>${label}</h2><div class="metric-options">${metrics.map(([metric])=>`<button type="button" data-action="analysis-type" data-value="${metric}" aria-pressed="${state.metric===metric}" class="${state.metric===metric?'active':''}">${esc(metricName(metric))}</button>`).join('')}</div></div>`).join('')}</nav>${metricExplanation()}<div class="analysis-grid ${['duplication','sourceDuplication','folders','dupfiles','sourceDupfiles'].includes(state.type)?'wide-evidence':''}"><aside class="panel tree-panel">${tree()}</aside><section class="panel table-panel">${table()}</section><aside class="panel evidence-panel">${evidence()}</aside></div>`;
   }
   function allMetrics() {
     const keys=Object.keys(model.sides.baseline.summary).filter(key=>typeof model.sides.baseline.summary[key]==='number');
@@ -314,7 +398,7 @@
     console.info('[prototype state]',structuredClone(state));
   }
   function resetEvidence(){state.locationOverride=null;state.groups={baseline:null,current:null};state.memberStatus='changes';state.memberQuery='';state.memberPage=1;}
-  function resetQuery(){Object.assign(state,{query:'',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',searchScope:'directory',page:1,selected:null,advanced:false});resetEvidence();}
+  function resetQuery(){Object.assign(state,{query:'',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',searchScope:'directory',page:1,selected:null,exactFile:null,advanced:false,contributionPage:1});resetEvidence();}
   function selectInitial(){const rows=queriedRows().rows;state.selected=(rows.find(r=>r.path==='src/core/parser.c'&&!r.ambiguous)||rows[0])?.id??null;}
   function remember(){const {trail,...context}=state;state.trail.push(structuredClone(context));}
   function openFile(path,type='code',retainTrail=false){if(retainTrail)remember();else state.trail=[];resetQuery();state.view='workspace';selectMetric(defaultMetric(type));state.directory='';state.query=path;state.searchScope='all';state.status='all';state.selected=`file:${path}`;syncURL();}
@@ -328,6 +412,7 @@
     if(action==='copy'){await copy($('#location-text').value);return;}
     if(action==='fragment'){state.locationOverride=value;safeRender();await copy(value);return;}
     if(action==='group'){state.groups[target.dataset.side]=value;state.locationOverride=null;safeRender();return;}
+    if(action==='contribution-page'){state.contributionPage+=Number(value);safeRender();return;}
     if(action==='member-filter'){state.memberStatus=value;state.memberPage=1;safeRender();return;}
     if(action==='member-page'){state.memberPage+=Number(value);safeRender();return;}
     if(action==='back'){const previous=state.trail.pop();if(previous){const trail=state.trail;state={...previous,trail};}safeRender();return;}
@@ -337,6 +422,12 @@
     if(action==='reset'){resetQuery();selectInitial();}
     if(action==='analysis-type'&&value===state.metric)return;
     if(action==='metric'||action==='analysis-type'){resetQuery();state.directory='';selectMetric(action==='analysis-type'?value:target.dataset.metric||defaultMetric(value));state.view='workspace';state.trail=[];if(target.dataset.status)state.status=target.dataset.status;selectInitial();syncURL();}
+    if(action==='contributor'){
+      remember();resetQuery();state.status='all';
+      if(target.dataset.kind==='folder'){selectMetric('code_size');state.directory=value;}
+      else{if(!rowsFor(state.type).some(row=>row.path===value))selectMetric('code_size');state.directory='';state.query=value;state.exactFile=value;state.searchScope='all';}
+      selectInitial();syncURL();
+    }
     if(action==='directory'){if(state.view!=='workspace')selectMetric('code_size');state.directory=value;state.view='workspace';state.trail=[];resetQuery();selectInitial();syncURL();}
     if(action==='growth-files'){resetQuery();state.directory='';selectMetric('code_size');state.status='growth';state.view='workspace';selectInitial();syncURL();}
     if(action==='open-file')openFile(value,target.dataset.type);
@@ -351,20 +442,22 @@
     const key=event.target.dataset.change;if(!key)return;
     if(key==='memberQuery'){state.memberQuery=event.target.value;state.memberPage=1;safeRender();return;}
     const form=event.target.closest('form');if(form){const draft=new FormData(form);state.query=String(draft.get('query')??'');state.min=String(draft.get('min')??'');state.max=String(draft.get('max')??'');state.advanced=form.querySelector('details').open;}
+    if(state.exactFile&&state.query!==state.exactFile)state.exactFile=null;
     state[key]=event.target.value;state.page=1;state.selected=null;state.trail=[];resetEvidence();
+    if(key==='searchScope')state.contributionPage=1;
     if(key==='scenario'){model=buildModel();resetQuery();}
 
     selectInitial();safeRender();
   });
   document.addEventListener('submit',event=>{
     if(event.target.id!=='query-form')return;event.preventDefault();const form=new FormData(event.target);
-    state.query=String(form.get('query'));state.min=String(form.get('min'));state.max=String(form.get('max'));state.advanced=event.target.querySelector('details').open;state.page=1;state.trail=[];resetEvidence();selectInitial();safeRender();
+    state.query=String(form.get('query'));if(state.query!==state.exactFile)state.exactFile=null;state.min=String(form.get('min'));state.max=String(form.get('max'));state.advanced=event.target.querySelector('details').open;state.page=1;state.trail=[];resetEvidence();selectInitial();safeRender();
   });
   window.addEventListener('popstate',()=>{const view=new URLSearchParams(location.search).get('view');state.view=['overview','workspace','metrics'].includes(view)?view:'overview';safeRender();});
   try {
     DATA=JSON.parse($('#report-data').textContent);
     const params=new URLSearchParams(location.search),view=params.get('view')||(params.get('variant')==='B'?'workspace':'overview');
-    state={scenario:'normal',view:['overview','workspace','metrics'].includes(view)?view:'overview',type:'code',metric:'code_size',directory:'',query:'',searchScope:'directory',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',page:1,pageSize:10,selected:null,locationOverride:null,groups:{baseline:null,current:null},memberStatus:'changes',memberQuery:'',memberPage:1,advanced:false,trail:[]};
+    state={scenario:'normal',view:['overview','workspace','metrics'].includes(view)?view:'overview',type:'code',metric:'code_size',directory:'',query:'',searchScope:'directory',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',page:1,pageSize:10,selected:null,exactFile:null,locationOverride:null,groups:{baseline:null,current:null},memberStatus:'changes',memberQuery:'',memberPage:1,contributionPage:1,advanced:false,trail:[]};
     model=buildModel();selectInitial();if(params.get('failInit')==='1')throw new Error('模拟初始化失败');render();
   }catch(error){fail(error);}
 })();

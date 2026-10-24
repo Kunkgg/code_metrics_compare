@@ -57,3 +57,4 @@ Status: resolved
 ## Comments
 
 - 这是 03 号分类入口的后续：从 7 + 5 个明细类型入口扩展为 10 + 10 个指标入口。
+- 后续 [05 号记录](05-average-file-explanation.md) 增加 12 项均值/比例的分子、分母与对象贡献解释。

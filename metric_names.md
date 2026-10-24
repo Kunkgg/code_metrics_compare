@@ -21,7 +21,7 @@ huge_folder_total: 超大目录数
 huge_folder_ratio: 超大目录率
 file_duplication_total: 总重复文件数
 file_duplication_ratio: 文件重复率
-non_hfile_duplication_total: 源文件数
+non_hfile_duplication_total: 源文件中重复文件数
 non_hfile_duplication_ratio: 源文件重复率
 code_duplication_total: 总重复代码行数
 code_duplication_ratio: 代码重复率

@@ -53,6 +53,7 @@ uv run python -m cmetrics_cmp_viz.prototype --open
 - 默认种子 `20261021`，两侧各 **181 个文件、545 个普通函数**；另生成两侧 JSON、内部有效行模型与变化台账。
 - 指标中文名统一读取根目录 [`metric_names.md`](metric_names.md)，静态概览与交互页面使用同一映射；不改变原有统计公式。
 - 两侧统一称为“基线 / 当前”。小数四舍五入到两位，均值、密度与比例保留尾零，计数保持整数；只调整显示，比较和筛选仍使用原始精度。
+- 12 项均值/比例分析同时展示分子、分母变化及贡献，按文件或目录列出影响最大的对象；正负贡献和相互抵消项均保留，支持翻页、精确下钻和返回。解释范围随目录切换，不受表内筛选影响。
 - 五类超大指标均有“新增 1、退出 1、总数不变”的样例。卡片仍突出新增 1，点击默认查看新增超限对象，不以净数抵消新增。
 - 超大目录阈值为 **50，严格大于才超限**。`src/expanded` 为 50 → 52，`src/trimmed` 为 52 → 50；`src/bulk` 为 52 → 52，但有新增 2、移出 2 个直接成员。
 - 重复片段支持两侧独立选组、当前文件高亮、关联文件变化及位置复制。`parser.c` 重复行 40 → 70，关联 `shared.c` 保持 40 → 40；不会按组号匹配前后版本。
@@ -70,7 +71,7 @@ uv run python -m cmetrics_cmp_viz.prototype --seed 42 --output-dir output/protot
 uv run python -m cmetrics_cmp_viz.prototype --production-preview --output-dir output/prototype-preview
 ```
 
-源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。最新 20 项分析入口与口径见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
+源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。最新均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
 
 ## 模拟数据生成与校验 (P0)
 
