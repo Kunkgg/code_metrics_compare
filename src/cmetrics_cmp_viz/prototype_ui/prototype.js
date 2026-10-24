@@ -25,13 +25,35 @@
     ['huge_cyclomatic_complexity_total','个','hugeCC'],['huge_method_total','个','hugeMethod'],
     ['huge_headerfile_total','个','hugeHeader'],['huge_non_headerfile_total','个','hugeSource'],['huge_folder_total','个','folders']
   ];
-  const typeMetrics = {code:'code_size',duplication:'code_duplication_total',methodLines:'method_lines',cc:'cyclomatic_complexity_total',dupfiles:'file_duplication_total',unsafe:'unsafe_functions_total',redundant:'redundant_code_total',hugeHeader:'huge_headerfile_total',hugeSource:'huge_non_headerfile_total',hugeMethod:'huge_method_total',hugeCC:'huge_cyclomatic_complexity_total',folders:'huge_folder_total'};
-  const typeUnits = {code:'行',duplication:'行',methodLines:'行',cc:'',dupfiles:'',unsafe:'',redundant:'',hugeHeader:'行',hugeSource:'行',hugeMethod:'行',hugeCC:'',folders:'直接成员'};
+  // 汇总指标与明细类型分开：均值/比例保留独立入口，共用底层证据。
+  const analysisCategories = [
+    ['常规指标',[
+      ['code_size','code'],['lines_per_file','code'],['lines_per_method','methodLines'],['cyclomatic_complexity_per_method','cc'],
+      ['code_duplication_ratio','duplication'],['file_duplication_ratio','dupfiles'],['unsafe_functions_total','unsafe'],['redundant_code_total','redundant'],
+      ['non_hfile_code_duplication_ratio','sourceDuplication'],['non_hfile_duplication_ratio','sourceDupfiles']
+    ]],
+    ['超大指标',[
+      ['huge_headerfile_total','hugeHeader'],['huge_headerfile_ratio','hugeHeader'],['huge_non_headerfile_total','hugeSource'],['huge_non_headerfile_ratio','hugeSource'],
+      ['huge_method_total','hugeMethod'],['huge_method_ratio','hugeMethod'],['huge_cyclomatic_complexity_total','hugeCC'],['huge_cyclomatic_complexity_ratio','hugeCC'],
+      ['huge_folder_total','folders'],['huge_folder_ratio','folders']
+    ]]
+  ];
+  const analysisMetrics = analysisCategories.flatMap(([,metrics])=>metrics);
+  const defaultMetric = type => analysisMetrics.find(([,detailType])=>detailType===type)[0];
+  const metricFraction = key => ({
+    lines_per_file:['code_size','files_total'],lines_per_method:['method_lines','methods_total'],cyclomatic_complexity_per_method:['cyclomatic_complexity_total','methods_total'],
+    code_duplication_ratio:['code_duplication_total','code_size'],file_duplication_ratio:['file_duplication_total','files_total'],
+    non_hfile_code_duplication_ratio:['non_hfile_code_duplication_total','code_size'],non_hfile_duplication_ratio:['non_hfile_duplication_total','files_total'],
+    huge_headerfile_ratio:['huge_headerfile_total','files_total'],huge_non_headerfile_ratio:['huge_non_headerfile_total','files_total'],
+    huge_method_ratio:['huge_method_total','methods_total'],huge_cyclomatic_complexity_ratio:['huge_cyclomatic_complexity_total','methods_total'],huge_folder_ratio:['huge_folder_total','folders_total']
+  }[key]);
+  const typeMetrics = {code:'code_size',duplication:'code_duplication_total',sourceDuplication:'non_hfile_code_duplication_total',methodLines:'method_lines',cc:'cyclomatic_complexity_total',dupfiles:'file_duplication_total',sourceDupfiles:'non_hfile_duplication_total',unsafe:'unsafe_functions_total',redundant:'redundant_code_total',hugeHeader:'huge_headerfile_total',hugeSource:'huge_non_headerfile_total',hugeMethod:'huge_method_total',hugeCC:'huge_cyclomatic_complexity_total',folders:'huge_folder_total'};
+  const typeUnits = {code:'行',duplication:'重复行',sourceDuplication:'重复行',methodLines:'行',cc:'圈复杂度',dupfiles:'重复标记',sourceDupfiles:'重复标记',unsafe:'',redundant:'',hugeHeader:'行',hugeSource:'行',hugeMethod:'行',hugeCC:'圈复杂度',folders:'直接成员'};
   const thresholdKey = type => ({hugeHeader:'huge_headerfile',hugeSource:'huge_non_headerfile',hugeMethod:'huge_method',hugeCC:'huge_cyclomatic_complexity',folders:'huge_folder'}[type]);
   const statusNames = {growth:'增长',decrease:'减少',entered:'新增',exited:'移出',structural:'变化',ambiguous:'同名无法配对',unknown:'未知',incomparable:'不可比较'};
   let DATA, model, state;
   const metricName = key => DATA.meta.metricNames[key] ?? key;
-  const typeName = type => metricName(typeMetrics[type]);
+  function selectMetric(key){state.metric=key;state.type=analysisMetrics.find(([metric])=>metric===key)[1];}
   const inDirectory = (path,dir) => !dir || path===dir || path.startsWith(`${dir}/`);
   const isHeader = path => /\.(h|hh|hpp|hxx)$/.test(path);
 
@@ -107,6 +129,7 @@
     return {...row,b,c,delta,flags,changed:flags.length>0||row.structural||row.otherMetric,...extra};
   }
   function rowsFor(type) {
+    if(type==='sourceDuplication'||type==='sourceDupfiles')return rowsFor(type==='sourceDuplication'?'duplication':'dupfiles').filter(row=>!isHeader(row.path));
     const b=model.sides.baseline,c=model.sides.current;
     if(['code','duplication','hugeHeader','hugeSource','dupfiles'].includes(type)) {
       let rows=model.fileRows;
@@ -175,7 +198,7 @@
     const result={};
     for(const side of ['baseline','current']) {
       const s=model.sides[side];
-      const vals=['methodLines','cc'].includes(type)?s.methods.filter(m=>inDirectory(m.path,dir)).map(m=>m[type==='cc'?'cyclomatic_complexity':'nbnc_loc']):Object.entries(s.files).filter(([p])=>inDirectory(p,dir)).map(([,v])=>v[type==='duplication'?2:0]);
+      const vals=['methodLines','cc'].includes(type)?s.methods.filter(m=>inDirectory(m.path,dir)).map(m=>m[type==='cc'?'cyclomatic_complexity':'nbnc_loc']):Object.entries(s.files).filter(([p])=>inDirectory(p,dir)&&(type!=='sourceDuplication'||!isHeader(p))).map(([,v])=>v[type==='duplication'||type==='sourceDuplication'?2:0]);
       result[side]={value:vals.some(v=>v==null)?null:total(vals,v=>v),valid:vals.filter(v=>v!=null).length,count:vals.length};
     }
     return {...result,delta:knownDelta(result.baseline.value,result.current.value)};
@@ -218,8 +241,9 @@
   function table() {
     const q=queriedRows(),pages=Math.max(1,Math.ceil(q.rows.length/state.pageSize));state.page=Math.min(state.page,pages);
     const slice=q.rows.slice((state.page-1)*state.pageSize,state.page*state.pageSize),key=thresholdKey(state.type);
-    const additive=['code','duplication','methodLines','cc'].includes(state.type),scope=additive?aggregate(q.scope,state.type):null;
-    return `<div class="scope-title"><strong>${esc(q.scope||'全部目录')}</strong><span class="spacer"></span><span class="muted">${q.rows.length} 项</span></div>${controls()}${key?`<div class="threshold-note">超限阈值 <b>&gt; ${model.sides.baseline.summary.huge_threshold[key]}${model.sides.baseline.summary.huge_threshold[key]!==model.sides.current.summary.huge_threshold[key]?` → > ${model.sides.current.summary.huge_threshold[key]}`:''}</b>${state.type==='folders'?' 个直接成员':''}</div>`:''}${scope?`<div class="scope-total" title="当前目录完整数据，不受表内筛选影响${['cc','methodLines'].includes(state.type)?'；同名函数按两侧原始值各自求和':''}"><span>目录合计</span><b>${fmt(scope.baseline.value)}</b><span>→</span><b>${fmt(scope.current.value)}</b><span class="${cls(scope.delta)}">${deltaText(scope.delta)}</span>${scope.current.valid!==scope.current.count?badge(`${scope.current.valid}/${scope.current.count} 有效`,'warning'):''}</div>`:''}<div class="table-wrap"><table class="data-table"><thead><tr><th>${state.type==='folders'?'目录':state.type==='cc'||state.type==='methodLines'||state.type==='hugeMethod'||state.type==='hugeCC'?'函数':'对象'}</th><th class="num">基线</th><th class="num">当前</th><th class="num">变化</th><th>标记</th></tr></thead><tbody>${slice.length?slice.map(row=>`<tr class="${state.selected===row.id?'selected':''}"><td><button class="row-title ${row.kind==='file'||row.kind==='folder'?'mono':''}" data-action="select" data-value="${esc(row.id)}">${esc(row.kind==='file'||row.kind==='folder'?row.path:row.name)}</button>${row.kind==='method'?`<span class="row-subtitle mono">${esc(row.path)}</span>`:['unsafe','redundant'].includes(row.kind)?`<span class="row-subtitle mono">${esc(row.path)} : ${row.line}</span>`:row.kind==='folder'?`<span class="row-subtitle"><span class="${row.addedMembers?'up':''}">新增 ${row.addedMembers}</span> / 移出 ${row.removedMembers}</span>`:''}</td><td class="num">${row.ambiguous?`${row.before.length} 条`:fmt(row.b)}</td><td class="num">${row.ambiguous?`${row.after.length} 条`:fmt(row.c)}</td><td class="num ${row.flags.includes('incomparable')?'muted':cls(row.delta)}">${deltaText(row.delta)}</td><td><div class="status-list">${rowStatus(row)}</div></td></tr>`).join(''):'<tr><td colspan="5" class="empty">无匹配数据 <button class="text" data-action="reset">重置</button></td></tr>'}</tbody></table></div><div class="pagination"><span>${q.rows.length} 项</span><div class="row"><button data-action="page" data-value="-1" ${state.page===1?'disabled':''} aria-label="上一页">←</button><span>${state.page} / ${pages}</span><button data-action="page" data-value="1" ${state.page===pages?'disabled':''} aria-label="下一页">→</button></div></div>`;
+    const additive=['code','duplication','sourceDuplication','methodLines','cc'].includes(state.type),scope=additive?aggregate(q.scope,state.type):null;
+    const detailLabel={code:'文件代码行',duplication:'重复代码行',sourceDuplication:'源代码重复行',methodLines:'函数代码行',cc:'圈复杂度'}[state.type];
+    return `<div class="scope-title"><strong>${esc(q.scope||'全部目录')}</strong><span class="spacer"></span><span class="muted">${q.rows.length} 项</span></div>${controls()}${key?`<div class="threshold-note">超限阈值 <b>&gt; ${model.sides.baseline.summary.huge_threshold[key]}${model.sides.baseline.summary.huge_threshold[key]!==model.sides.current.summary.huge_threshold[key]?` → > ${model.sides.current.summary.huge_threshold[key]}`:''}</b>${state.type==='folders'?' 个直接成员':''}</div>`:''}${scope?`<div class="scope-total" title="当前目录完整数据，不受表内筛选影响${['cc','methodLines'].includes(state.type)?'；同名函数按两侧原始值各自求和':''}"><span>目录${detailLabel}合计</span><b>${fmt(scope.baseline.value)}</b><span>→</span><b>${fmt(scope.current.value)}</b><span class="${cls(scope.delta)}">${deltaText(scope.delta)}</span>${scope.current.valid!==scope.current.count?badge(`${scope.current.valid}/${scope.current.count} 有效`,'warning'):''}</div>`:''}<div class="table-wrap"><table class="data-table"><thead><tr><th>${state.type==='folders'?'目录':state.type==='cc'||state.type==='methodLines'||state.type==='hugeMethod'||state.type==='hugeCC'?'函数':'对象'}</th><th class="num">基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</th><th class="num">当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</th><th class="num">变化</th><th>标记</th></tr></thead><tbody>${slice.length?slice.map(row=>`<tr class="${state.selected===row.id?'selected':''}"><td><button class="row-title ${row.kind==='file'||row.kind==='folder'?'mono':''}" data-action="select" data-value="${esc(row.id)}">${esc(row.kind==='file'||row.kind==='folder'?row.path:row.name)}</button>${row.kind==='method'?`<span class="row-subtitle mono">${esc(row.path)}</span>`:['unsafe','redundant'].includes(row.kind)?`<span class="row-subtitle mono">${esc(row.path)} : ${row.line}</span>`:row.kind==='folder'?`<span class="row-subtitle"><span class="${row.addedMembers?'up':''}">新增 ${row.addedMembers}</span> / 移出 ${row.removedMembers}</span>`:''}</td><td class="num">${row.ambiguous?`${row.before.length} 条`:fmt(row.b)}</td><td class="num">${row.ambiguous?`${row.after.length} 条`:fmt(row.c)}</td><td class="num ${row.flags.includes('incomparable')?'muted':cls(row.delta)}">${deltaText(row.delta)}</td><td><div class="status-list">${rowStatus(row)}</div></td></tr>`).join(''):'<tr><td colspan="5" class="empty">无匹配数据 <button class="text" data-action="reset">重置</button></td></tr>'}</tbody></table></div><div class="pagination"><span>${q.rows.length} 项</span><div class="row"><button data-action="page" data-value="-1" ${state.page===1?'disabled':''} aria-label="上一页">←</button><span>${state.page} / ${pages}</span><button data-action="page" data-value="1" ${state.page===pages?'disabled':''} aria-label="下一页">→</button></div></div>`;
   }
   function locationText(row) {
     const side=row.after&&(row.kind==='method'?row.after.length:true)?'Current':'Baseline';
@@ -258,8 +282,8 @@
     if(!row)return `<div class="empty">${state.trail.length?'<p>无关联记录</p><button class="text" data-action="back">← 返回原对象</button>':'选择左侧对象'}</div>`;
     let content='';
     if(row.kind==='file') {
-      if(state.type==='duplication')content+=duplicationEvidence(row);
-      else if(state.type==='dupfiles')content+=`<div class="group-columns">${['baseline','current'].map(side=>`<section class="group-side"><h3>${side==='baseline'?'基线':'当前'}</h3>${model.sides[side].dupfiles.filter(g=>g.members.includes(row.path)).map(g=>`<div class="raw-row"><span class="muted">组 ${esc(g.id)}</span>${g.members.map(path=>`<p class="mono">${esc(path)}</p>`).join('')}</div>`).join('')||'<p class="muted">无重复文件</p>'}</section>`).join('')}</div>`;
+      if(['duplication','sourceDuplication'].includes(state.type))content+=duplicationEvidence(row);
+      else if(['dupfiles','sourceDupfiles'].includes(state.type))content+=`<div class="group-columns">${['baseline','current'].map(side=>`<section class="group-side"><h3>${side==='baseline'?'基线':'当前'}</h3>${model.sides[side].dupfiles.filter(g=>g.members.includes(row.path)).map(g=>`<div class="raw-row"><span class="muted">组 ${esc(g.id)}</span>${g.members.map(path=>`<p class="mono">${esc(path)}</p>`).join('')}</div>`).join('')||'<p class="muted">无重复文件</p>'}</section>`).join('')}</div>`;
       else content+=`<div class="evidence-section"><table><thead><tr><th>指标</th><th class="num">基线</th><th class="num">当前</th></tr></thead><tbody>${['code_size','raw_lines','code_duplication_total'].map((key,i)=>`<tr><td>${metricName(key)}</td><td class="num">${row.before?fmt(row.before[i]):'—'}</td><td class="num">${row.after?fmt(row.after[i]):'—'}</td></tr>`).join('')}</tbody></table></div>`;
       content+=`<div class="file-actions">${[['cc','函数'],['duplication','重复片段'],['unsafe',metricName('unsafe_functions_total')],['redundant',metricName('redundant_code_total')],['dupfiles',metricName('file_duplication_total')]].filter(([type])=>type!==state.type).map(([type,label])=>`<button data-action="related" data-value="${type}" data-path="${esc(row.path)}">${label} ↗</button>`).join('')}</div>`;
     } else if(row.kind==='method') {
@@ -270,16 +294,17 @@
     return `<div class="evidence"><div class="evidence-head"><div class="row between"><h2 class="object-path mono">${esc(row.kind==='method'?row.name:row.path)}</h2>${state.trail.length?'<button class="text" data-action="back">← 返回</button>':''}</div>${row.kind==='method'?`<p class="mono muted small">${esc(row.path)}</p>`:''}<div class="status-list">${rowStatus(row)}</div></div><div class="pair-values"><div><small>基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':fmt(row.b)}</strong></div><span class="pair-arrow">→</span><div><small>当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':fmt(row.c)}</strong></div><div class="pair-delta ${row.flags.includes('incomparable')?'muted':cls(row.delta)}"><small>变化</small><strong>${deltaText(row.delta)}</strong></div></div>${content}${copyBlock(row)}</div>`;
   }
   function workspace() {
-    const key=typeMetrics[state.type],b=model.sides.baseline.summary[key],c=model.sides.current.summary[key];
-    const categories=[['常规指标',['code','methodLines','cc','duplication','dupfiles','unsafe','redundant']],['超大指标',['hugeCC','hugeMethod','hugeHeader','hugeSource','folders']]];
-    return `<div class="analysis-heading"><div class="row"><h1>分析</h1><span class="active-metric">${esc(typeName(state.type))}</span></div><div class="analysis-total" title="全报告指标"><span>基线 <b>${fmt(b,decimalMetric(key))}</b></span><span>→</span><span>当前 <b>${fmt(c,decimalMetric(key))}</b></span><b class="${summaryStatus(key)?'muted':cls(knownDelta(b,c))}">${deltaText(knownDelta(b,c),decimalMetric(key))}</b></div></div><nav class="analysis-metrics panel" aria-label="分析指标">${categories.map(([label,types])=>`<div class="metric-category" role="group" aria-label="${label}"><h2>${label}</h2><div class="metric-options">${types.map(type=>`<button type="button" data-action="analysis-type" data-value="${type}" aria-pressed="${state.type===type}" class="${state.type===type?'active':''}">${esc(typeName(type))}</button>`).join('')}</div></div>`).join('')}</nav><div class="analysis-grid ${['duplication','folders','dupfiles'].includes(state.type)?'wide-evidence':''}"><aside class="panel tree-panel">${tree()}</aside><section class="panel table-panel">${table()}</section><aside class="panel evidence-panel">${evidence()}</aside></div>`;
+    const key=state.metric,b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],ratio=key.endsWith('_ratio'),fraction=metricFraction(key);
+    const issue=summaryStatus(key)||(fraction&&['baseline','current'].some(side=>model.sides[side].summary[fraction[1]]===0)?'分母为零 / 不适用':'');
+    const formula=fraction?['baseline','current'].map(side=>{const s=model.sides[side].summary;return `${side==='baseline'?'基线':'当前'}：${metricName(fraction[0])} ${fmt(s[fraction[0]])} ÷ ${metricName(fraction[1])} ${fmt(s[fraction[1]])}${ratio?' × 100%':''}`;}).join('；'):'';
+    return `<div class="analysis-heading"><div class="row"><h1>分析</h1><span class="active-metric">${esc(metricName(key))}</span>${issue?badge(issue,'warning'):''}</div><div class="analysis-total" title="${esc(`全报告指标${formula?`；${formula}`:''}`)}"><span>基线 <b>${fmt(b,decimalMetric(key))}${ratio?'%':''}</b></span><span>→</span><span>当前 <b>${fmt(c,decimalMetric(key))}${ratio?'%':''}</b></span><b class="${issue?'muted':cls(knownDelta(b,c))}">${deltaText(knownDelta(b,c),decimalMetric(key))}${ratio?' 个百分点':''}</b></div></div><nav class="analysis-metrics panel" aria-label="分析指标">${analysisCategories.map(([label,metrics])=>`<div class="metric-category" role="group" aria-label="${label}"><h2>${label}</h2><div class="metric-options">${metrics.map(([metric])=>`<button type="button" data-action="analysis-type" data-value="${metric}" aria-pressed="${state.metric===metric}" class="${state.metric===metric?'active':''}">${esc(metricName(metric))}</button>`).join('')}</div></div>`).join('')}</nav><div class="analysis-grid ${['duplication','sourceDuplication','folders','dupfiles','sourceDupfiles'].includes(state.type)?'wide-evidence':''}"><aside class="panel tree-panel">${tree()}</aside><section class="panel table-panel">${table()}</section><aside class="panel evidence-panel">${evidence()}</aside></div>`;
   }
   function allMetrics() {
     const keys=Object.keys(model.sides.baseline.summary).filter(key=>typeof model.sides.baseline.summary[key]==='number');
     const ordered=[...mainMetrics.map(m=>m[0]),...keys.filter(key=>!mainMetrics.some(m=>m[0]===key))];
     return `${comparisonHeader()}<div class="section-head"><h1>全部指标</h1><span class="muted">${keys.length} 项</span></div><section class="panel"><table><thead><tr><th>指标</th><th class="num">基线</th><th class="num">当前</th><th class="num">变化</th><th>新增 / 退出</th></tr></thead><tbody>${ordered.map(key=>{
-      const b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],d=knownDelta(b,c),m=mainMetrics.find(m=>m[0]===key),t=m&&thresholdKey(m[2])?transition(m[2]):null,issue=summaryStatus(key);
-      return `<tr><td title="${esc(key)}">${m?`<button class="row-title" data-action="metric" data-value="${m[2]}" ${t?`data-status="${t.limited?'all':'entered'}"`:''}>${esc(metricName(key))} ↗</button>`:esc(metricName(key))}${issue?badge(issue,'warning'):''}</td><td class="num">${fmt(b,decimalMetric(key))}${key.endsWith('_ratio')?'%':''}</td><td class="num">${fmt(c,decimalMetric(key))}${key.endsWith('_ratio')?'%':''}</td><td class="num ${issue?'muted':cls(d)}">${deltaText(d,decimalMetric(key))}${key.endsWith('_ratio')?' 个百分点':''}</td><td>${t?`<span class="${t.entered&&!t.limited?'up':''}">新增 ${t.limited?'—':t.entered}</span> / 退出 ${t.limited?'—':t.exited}`:''}</td></tr>`;
+      const b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],d=knownDelta(b,c),m=analysisMetrics.find(m=>m[0]===key),t=m&&thresholdKey(m[1])?transition(m[1]):null,issue=summaryStatus(key);
+      return `<tr><td title="${esc(key)}">${m?`<button class="row-title" data-action="metric" data-value="${m[1]}" data-metric="${key}" ${t?`data-status="${t.limited?'all':'entered'}"`:''}>${esc(metricName(key))} ↗</button>`:esc(metricName(key))}${issue?badge(issue,'warning'):''}</td><td class="num">${fmt(b,decimalMetric(key))}${key.endsWith('_ratio')?'%':''}</td><td class="num">${fmt(c,decimalMetric(key))}${key.endsWith('_ratio')?'%':''}</td><td class="num ${issue?'muted':cls(d)}">${deltaText(d,decimalMetric(key))}${key.endsWith('_ratio')?' 个百分点':''}</td><td>${t?`<span class="${t.entered&&!t.limited?'up':''}">新增 ${t.limited?'—':t.entered}</span> / 退出 ${t.limited?'—':t.exited}`:''}</td></tr>`;
     }).join('')}<tr><td>最大函数代码行</td><td class="num">${fmt(DATA.baseline.detail_metrics.method_metrics.at(-1).maximum_nbnc_loc)}</td><td class="num">${fmt(DATA.current.detail_metrics.method_metrics.at(-1).maximum_nbnc_loc)}</td><td class="num">${deltaText(knownDelta(DATA.baseline.detail_metrics.method_metrics.at(-1).maximum_nbnc_loc,DATA.current.detail_metrics.method_metrics.at(-1).maximum_nbnc_loc))}</td><td></td></tr></tbody></table></section><details class="data-notes"><summary>数据说明与阈值</summary><div class="panel"><h3>超限阈值（严格大于）</h3><div class="threshold-list">${Object.entries(typeMetrics).filter(([type])=>thresholdKey(type)).map(([type,key])=>`<span>${metricName(key)} <b>${model.sides.baseline.summary.huge_threshold[thresholdKey(type)]} → ${model.sides.current.summary.huge_threshold[thresholdKey(type)]}</b></span>`).join('')}</div><p>同名无法配对：${model.methodRows.filter(r=>r.ambiguous).length} 组。原始记录保留，逐函数变化不计算。</p>${model.limited?'<p>异常演示：汇总不一致、重复行未知、阈值变化、目录成员不完整。</p>':''}<p>模拟数据，种子 ${DATA.meta.seed}。全部明细保留，搜索覆盖当前指标全部页；不含源码。</p><details><summary>来源字段与文件摘要</summary><pre>${esc(JSON.stringify({fields:DATA.meta.metricNames,sha256:DATA.meta.sha256},null,2))}</pre></details></div></details>`;
   }
   function inspector() {return PROTOTYPE_MODE?`<details class="state-inspector"><summary>原型状态</summary><pre>${esc(JSON.stringify({...state,result:queriedRows().rows.length,seed:DATA.meta.seed},null,2))}</pre></details>`:'';}
@@ -292,7 +317,7 @@
   function resetQuery(){Object.assign(state,{query:'',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',searchScope:'directory',page:1,selected:null,advanced:false});resetEvidence();}
   function selectInitial(){const rows=queriedRows().rows;state.selected=(rows.find(r=>r.path==='src/core/parser.c'&&!r.ambiguous)||rows[0])?.id??null;}
   function remember(){const {trail,...context}=state;state.trail.push(structuredClone(context));}
-  function openFile(path,type='code',retainTrail=false){if(retainTrail)remember();else state.trail=[];resetQuery();state.view='workspace';state.type=type;state.directory='';state.query=path;state.searchScope='all';state.status='all';state.selected=`file:${path}`;syncURL();}
+  function openFile(path,type='code',retainTrail=false){if(retainTrail)remember();else state.trail=[];resetQuery();state.view='workspace';selectMetric(defaultMetric(type));state.directory='';state.query=path;state.searchScope='all';state.status='all';state.selected=`file:${path}`;syncURL();}
   function syncURL(){const url=new URL(location.href);url.searchParams.delete('variant');url.searchParams.set('view',state.view);history.replaceState(null,'',url);}
   function safeRender(){try{render();}catch(error){fail(error);}}
   function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');setTimeout(()=>$('#toast').classList.remove('visible'),2200);}
@@ -310,16 +335,16 @@
     if(action==='page'){state.page+=Number(value);state.selected=null;resetEvidence();}
     if(action==='select'){state.selected=value;state.trail=[];resetEvidence();}
     if(action==='reset'){resetQuery();selectInitial();}
-    if(action==='analysis-type'&&value===state.type)return;
-    if(action==='metric'||action==='analysis-type'){resetQuery();state.directory='';state.type=value;state.view='workspace';state.trail=[];if(target.dataset.status)state.status=target.dataset.status;selectInitial();syncURL();}
-    if(action==='directory'){if(state.view!=='workspace')state.type='code';state.directory=value;state.view='workspace';state.trail=[];resetQuery();selectInitial();syncURL();}
-    if(action==='growth-files'){resetQuery();state.directory='';state.type='code';state.status='growth';state.view='workspace';selectInitial();syncURL();}
+    if(action==='analysis-type'&&value===state.metric)return;
+    if(action==='metric'||action==='analysis-type'){resetQuery();state.directory='';selectMetric(action==='analysis-type'?value:target.dataset.metric||defaultMetric(value));state.view='workspace';state.trail=[];if(target.dataset.status)state.status=target.dataset.status;selectInitial();syncURL();}
+    if(action==='directory'){if(state.view!=='workspace')selectMetric('code_size');state.directory=value;state.view='workspace';state.trail=[];resetQuery();selectInitial();syncURL();}
+    if(action==='growth-files'){resetQuery();state.directory='';selectMetric('code_size');state.status='growth';state.view='workspace';selectInitial();syncURL();}
     if(action==='open-file')openFile(value,target.dataset.type);
-    if(action==='peer')openFile(value,'duplication',true);
-    if(action==='related'){remember();const path=target.dataset.path;resetQuery();state.type=value;state.query=path;state.searchScope='all';state.status='all';selectInitial();}
-    if(action==='member-open'){remember();resetQuery();state.type='code';state.status='all';if(target.dataset.kind==='目录'){state.directory=value;selectInitial();}else{state.directory='';state.query=value;state.selected=`file:${value}`;}}
+    if(action==='peer')openFile(value,state.type==='sourceDuplication'&&!isHeader(value)?'sourceDuplication':'duplication',true);
+    if(action==='related'){remember();const path=target.dataset.path;resetQuery();selectMetric(defaultMetric(value));state.query=path;state.searchScope='all';state.status='all';selectInitial();}
+    if(action==='member-open'){remember();resetQuery();selectMetric('code_size');state.status='all';if(target.dataset.kind==='目录'){state.directory=value;selectInitial();}else{state.directory='';state.query=value;state.selected=`file:${value}`;}}
     safeRender();
-    if(action==='analysis-type')document.querySelector(`.analysis-metrics [data-value="${state.type}"]`)?.focus({preventScroll:true});
+    if(action==='analysis-type')document.querySelector(`.analysis-metrics [data-value="${state.metric}"]`)?.focus({preventScroll:true});
     if(['view','metric','directory','growth-files','open-file'].includes(action))window.scrollTo(0,0);
   });
   document.addEventListener('change',event=>{
@@ -339,7 +364,7 @@
   try {
     DATA=JSON.parse($('#report-data').textContent);
     const params=new URLSearchParams(location.search),view=params.get('view')||(params.get('variant')==='B'?'workspace':'overview');
-    state={scenario:'normal',view:['overview','workspace','metrics'].includes(view)?view:'overview',type:'code',directory:'',query:'',searchScope:'directory',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',page:1,pageSize:10,selected:null,locationOverride:null,groups:{baseline:null,current:null},memberStatus:'changes',memberQuery:'',memberPage:1,advanced:false,trail:[]};
+    state={scenario:'normal',view:['overview','workspace','metrics'].includes(view)?view:'overview',type:'code',metric:'code_size',directory:'',query:'',searchScope:'directory',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',page:1,pageSize:10,selected:null,locationOverride:null,groups:{baseline:null,current:null},memberStatus:'changes',memberQuery:'',memberPage:1,advanced:false,trail:[]};
     model=buildModel();selectInitial();if(params.get('failInit')==='1')throw new Error('模拟初始化失败');render();
   }catch(error){fail(error);}
 })();

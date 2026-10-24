@@ -43,7 +43,7 @@ uv run python -m cmetrics_cmp_viz.prototype --open
 当前按用户反馈合并 A 的概览与 B 的三栏分析，取消 C 和方案切换栏。首轮三方案保留在提交 `7a5edae`。
 
 - **概览**：差值优先，新增超限单独突出；点击卡片进入对应明细。
-- **分析**：顶部按“常规指标 / 超大指标”两行平铺 12 个指标入口；目录、明细、证据三栏联查，重复片段与目录成员使用加宽详情。
+- **分析**：顶部按“常规指标 / 超大指标”两行平铺各 10 个指标入口，均值和比例可独立选择；目录、明细、证据三栏联查，重复片段与目录成员使用加宽详情。
 - **全部指标**：查看 33 项汇总及必要最大值；技术来源与阈值默认折叠。
 
 也可直接打开 `?view=overview`、`?view=workspace`、`?view=metrics`。状态仅保存在内存，刷新不保存查询条件。页面末尾折叠的“原型状态”用于核对交互条件。
@@ -70,7 +70,7 @@ uv run python -m cmetrics_cmp_viz.prototype --seed 42 --output-dir output/protot
 uv run python -m cmetrics_cmp_viz.prototype --production-preview --output-dir output/prototype-preview
 ```
 
-源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。最新显示规则及分类入口见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
+源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。最新 20 项分析入口与口径见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
 
 ## 模拟数据生成与校验 (P0)
 
