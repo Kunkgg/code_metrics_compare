@@ -271,7 +271,7 @@
   }
   function workspace() {
     const key=typeMetrics[state.type],b=model.sides.baseline.summary[key],c=model.sides.current.summary[key];
-    const categories=[['规模与复杂度',['code','methodLines','cc']],['重复与问题',['duplication','dupfiles','unsafe','redundant']],['超限指标',['hugeCC','hugeMethod','hugeHeader','hugeSource','folders']]];
+    const categories=[['常规指标',['code','methodLines','cc','duplication','dupfiles','unsafe','redundant']],['超大指标',['hugeCC','hugeMethod','hugeHeader','hugeSource','folders']]];
     return `<div class="analysis-heading"><div class="row"><h1>分析</h1><span class="active-metric">${esc(typeName(state.type))}</span></div><div class="analysis-total" title="全报告指标"><span>基线 <b>${fmt(b,decimalMetric(key))}</b></span><span>→</span><span>当前 <b>${fmt(c,decimalMetric(key))}</b></span><b class="${summaryStatus(key)?'muted':cls(knownDelta(b,c))}">${deltaText(knownDelta(b,c),decimalMetric(key))}</b></div></div><nav class="analysis-metrics panel" aria-label="分析指标">${categories.map(([label,types])=>`<div class="metric-category" role="group" aria-label="${label}"><h2>${label}</h2><div class="metric-options">${types.map(type=>`<button type="button" data-action="analysis-type" data-value="${type}" aria-pressed="${state.type===type}" class="${state.type===type?'active':''}">${esc(typeName(type))}</button>`).join('')}</div></div>`).join('')}</nav><div class="analysis-grid ${['duplication','folders','dupfiles'].includes(state.type)?'wide-evidence':''}"><aside class="panel tree-panel">${tree()}</aside><section class="panel table-panel">${table()}</section><aside class="panel evidence-panel">${evidence()}</aside></div>`;
   }
   function allMetrics() {
