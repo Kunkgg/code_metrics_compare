@@ -74,6 +74,20 @@ uv run python -m cmetrics_cmp_viz.prototype --production-preview --output-dir ou
 
 源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。“全部指标分组与阈值展示”见 [第十一轮记录](.scratch/report-ui-prototype/issues/11-all-metrics-groups.md)，“概览分类与显示切换”见 [第十轮记录](.scratch/report-ui-prototype/issues/10-overview-directions.md)，“指标变化”合并与单一影响值见 [第九轮记录](.scratch/report-ui-prototype/issues/09-single-impact.md)，“无变化”口径与文案精简见 [第八轮记录](.scratch/report-ui-prototype/issues/08-metric-only-changes.md)，筛选排序见 [第七轮记录](.scratch/report-ui-prototype/issues/07-task-filters.md)，定位文本见 [第六轮记录](.scratch/report-ui-prototype/issues/06-simple-location.md)，均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
 
+## 大数据容量验证原型（每侧 10 万文件 / 100 万函数）
+
+> 同样是一次性验证入口，归档分支 `prototype/prd-ui-comparison-large-data`。验证记录：[`.scratch/report-large-data/issues/01-capacity-validation.md`](.scratch/report-large-data/issues/01-capacity-validation.md)。
+
+```bash
+# 1. 生成可复现压力数据（两侧扫描 JSON + manifest 台账）
+uv run python -m cmetrics_cmp_viz.prototype_scale_data --num-files 100000 --output-dir output/scale-100k-full
+
+# 2. 构建紧凑分块单 HTML（gzip+base64 内嵌，浏览器内 Blob Worker 查询）
+uv run python -m cmetrics_cmp_viz.prototype_capacity --input-dir output/scale-100k-full
+```
+
+产物：`output/scale-100k-full/capacity-report.html`（约 14.5 MB）。页内可用 `window.scalePrototype.bench('query', {...}, 20)` 复测 P95，`run('verify')` 核对汇总与台账一致性。仅在 Chrome 156 headless + 断网 file:// 实测，未覆盖 Edge/headed/跨 OS。
+
 ## 模拟数据生成与校验 (P0)
 
 本项目内置了符合 `schemas/cmetrics-report.schema.json` 契约且支持从明细严格复算汇总的模拟数据生成与分层校验工具。
