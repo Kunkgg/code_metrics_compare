@@ -47,3 +47,7 @@ Status: resolved
 
 当前原型归档分支：`prototype/prd-ui-comparison`。
 源码：`src/cmetrics_cmp_viz/prototype_ui/prototype.js`、`prototype.css`。
+
+## Comments
+
+用户后续要求：对当前指标没有影响的对象统一显示“无变化”，不再细拆位置与关联变化，并减少页面常驻说明。[第八轮](08-metric-only-changes.md) 已覆盖本轮相关决定。
