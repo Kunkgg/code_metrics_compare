@@ -44,7 +44,7 @@ uv run python -m cmetrics_cmp_viz.prototype --open
 
 - **概览**：与分析页共用“常规指标 / 超大指标”两组各 10 项，支持多选“增长 / 新增”“减少 / 退出”“无变化”，默认前两项；卡片、目录图及文件列表同步筛选，超限进出可分别下钻。
 - **分析**：顶部按“常规指标 / 超大指标”两行平铺各 10 个指标入口，均值和比例可独立选择；目录、明细、证据三栏联查，重复片段与目录成员使用加宽详情。
-- **全部指标**：查看 33 项汇总及必要最大值；技术来源与阈值默认折叠。
+- **全部指标**：沿用“常规指标 / 超大指标”两组各 10 项；其余 13 项汇总和最大函数代码行放入默认折叠的“计算过程数据”。五类超大指标的数量与比例各共用一条带单位的超限条件，阈值变化显示基线／当前条件，新增／退出可直接下钻；技术来源默认折叠。
 
 也可直接打开 `?view=overview`、`?view=workspace`、`?view=metrics`。状态仅保存在内存，刷新不保存查询条件。页面末尾折叠的“原型状态”用于核对交互条件。
 
@@ -72,7 +72,7 @@ uv run python -m cmetrics_cmp_viz.prototype --seed 42 --output-dir output/protot
 uv run python -m cmetrics_cmp_viz.prototype --production-preview --output-dir output/prototype-preview
 ```
 
-源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。“概览分类与显示切换”见 [第十轮记录](.scratch/report-ui-prototype/issues/10-overview-directions.md)，“指标变化”合并与单一影响值见 [第九轮记录](.scratch/report-ui-prototype/issues/09-single-impact.md)，“无变化”口径与文案精简见 [第八轮记录](.scratch/report-ui-prototype/issues/08-metric-only-changes.md)，筛选排序见 [第七轮记录](.scratch/report-ui-prototype/issues/07-task-filters.md)，定位文本见 [第六轮记录](.scratch/report-ui-prototype/issues/06-simple-location.md)，均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
+源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。“全部指标分组与阈值展示”见 [第十一轮记录](.scratch/report-ui-prototype/issues/11-all-metrics-groups.md)，“概览分类与显示切换”见 [第十轮记录](.scratch/report-ui-prototype/issues/10-overview-directions.md)，“指标变化”合并与单一影响值见 [第九轮记录](.scratch/report-ui-prototype/issues/09-single-impact.md)，“无变化”口径与文案精简见 [第八轮记录](.scratch/report-ui-prototype/issues/08-metric-only-changes.md)，筛选排序见 [第七轮记录](.scratch/report-ui-prototype/issues/07-task-filters.md)，定位文本见 [第六轮记录](.scratch/report-ui-prototype/issues/06-simple-location.md)，均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
 
 ## 模拟数据生成与校验 (P0)
 
