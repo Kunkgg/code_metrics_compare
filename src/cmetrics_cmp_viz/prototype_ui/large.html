@@ -1,0 +1,23 @@
+<!doctype html>
+<!-- 大数据容量验证原型：紧凑分块 + Blob Worker；一次性验证用，不是正式报告实现。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; worker-src blob:; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>Cmetrics / 大数据容量验证原型</title>
+  <style>@@STYLE@@</style>
+</head>
+<body>
+  <section id="fallback" class="static-fallback">
+    <div class="notice"><strong>静态概览 / 模拟数据 / 容量验证原型</strong><p id="init-status">交互未启动，目录导航、搜索与下钻不可用。</p></div>
+    @@STATIC@@
+  </section>
+  <div id="app"></div>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="application/json" id="scale-meta">@@META@@</script>
+  <script type="text/plain" id="scale-worker">@@WORKER@@</script>
+  @@BLOCKS@@
+  <script>@@SCRIPT@@</script>
+</body>
+</html>

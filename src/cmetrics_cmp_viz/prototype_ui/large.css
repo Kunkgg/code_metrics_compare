@@ -1,0 +1,254 @@
+/* 大数据容量验证原型附加样式：三栏工作区与有限列表，复用 prototype.css 的基础组件。 */
+
+.capacity-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.capacity-head .scale-info {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+}
+#init-status {
+  display: block;
+  margin: 8px 0;
+}
+
+.capacity-init {
+  max-width: 720px;
+  margin: 48px auto;
+  padding: 24px;
+}
+.capacity-init progress {
+  width: 100%;
+  height: 10px;
+}
+.capacity-init .stage {
+  margin-top: 8px;
+  font-size: 13px;
+  color: var(--muted, #6b7280);
+  min-height: 20px;
+}
+
+.workspace-3col {
+  display: grid;
+  grid-template-columns: 300px minmax(430px, 1fr) minmax(320px, 0.9fr);
+  gap: 14px;
+  align-items: start;
+}
+@media (max-width: 1180px) {
+  .workspace-3col {
+    grid-template-columns: 1fr;
+  }
+}
+.workspace-3col > section {
+  min-width: 0;
+}
+
+.dir-panel .dir-list,
+.workspace-3col .table-wrap {
+  max-height: 66vh;
+  overflow: auto;
+}
+.dir-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  text-align: left;
+  padding: 5px 8px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  border-radius: 6px;
+}
+.dir-row:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+.dir-row.active {
+  background: rgba(59, 130, 246, 0.16);
+  font-weight: 600;
+}
+.dir-row .dir-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dir-row .dir-count {
+  font-size: 11px;
+  color: var(--muted, #6b7280);
+  white-space: nowrap;
+}
+.dir-row .huge-mark {
+  color: #b45309;
+  font-size: 11px;
+}
+.crumbs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 12px;
+  margin-bottom: 6px;
+}
+.crumbs button {
+  border: 0;
+  background: none;
+  color: #2563eb;
+  cursor: pointer;
+  font: inherit;
+  padding: 2px 4px;
+}
+.crumbs .current {
+  color: inherit;
+  font-weight: 600;
+}
+
+.type-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.type-tabs button,
+.status-tabs button {
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  background: none;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+.type-tabs button.active,
+.status-tabs button.active {
+  background: #1f2937;
+  color: #fff;
+  border-color: #1f2937;
+}
+.status-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 6px 0;
+}
+.status-tabs button span {
+  opacity: 0.75;
+  margin-left: 4px;
+}
+.query-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+.query-toolbar select,
+.query-toolbar input.search {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  border-radius: 6px;
+  padding: 5px 8px;
+  font: inherit;
+}
+.query-toolbar input.search {
+  flex: 1;
+  min-width: 180px;
+}
+.scope-line {
+  font-size: 12px;
+  color: var(--muted, #6b7280);
+  margin: 6px 0;
+}
+.rows-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.rows-table th,
+.rows-table td {
+  text-align: left;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  vertical-align: top;
+}
+.rows-table th.num,
+.rows-table td.num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.rows-table td.path-cell {
+  max-width: 340px;
+  overflow-wrap: anywhere;
+}
+.rows-table tbody tr {
+  cursor: pointer;
+}
+.rows-table tbody tr:hover {
+  background: rgba(59, 130, 246, 0.06);
+}
+.rows-table tbody tr.selected {
+  background: rgba(59, 130, 246, 0.14);
+}
+.rows-table .up {
+  color: #dc2626;
+}
+.rows-table .down {
+  color: #16a34a;
+}
+
+.evidence-records .raw-row {
+  margin: 6px 0;
+}
+.evidence-records .muted {
+  color: var(--muted, #6b7280);
+  font-size: 12px;
+}
+.group-block {
+  margin: 10px 0;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 8px;
+}
+.group-block .group-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.group-block .member-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+}
+.group-block .member-list li {
+  overflow-wrap: anywhere;
+  padding: 2px 0;
+}
+.mini-pagination {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  font-size: 12px;
+  margin-top: 8px;
+}
+.mini-pagination button {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: none;
+  border-radius: 6px;
+  cursor: pointer;
+  padding: 2px 8px;
+}
+.mini-pagination button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.busy-note {
+  font-size: 12px;
+  color: #2563eb;
+  min-height: 16px;
+}
