@@ -8,6 +8,7 @@
 - [第三轮显示规则与分类入口](issues/03-format-and-metric-navigation.md)。
 - [第四轮两组各十项分析指标](issues/04-analysis-metric-list.md)，包含指标名称、顺序及比例口径。
 - [第五轮均值、比例与对象贡献](issues/05-average-file-explanation.md)，包含分子/分母分解、排名与完整验证。
+- [第六轮精简定位信息](issues/06-simple-location.md)：文件/目录仅复制路径；具体位置保留中文侧别、路径、行号及必要名称；同名函数无法配对时保留提示。
 
 以下保留首轮三方案设计与比较背景。
 
