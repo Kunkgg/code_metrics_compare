@@ -16,9 +16,9 @@ from cmetrics_cmp_viz.schema import is_header_file
 from cmetrics_cmp_viz.validator import validate_l0, validate_l1, validate_l2, validate_l3
 
 MAIN_METRICS = [
-    ("code_size", "有效代码行"),
-    ("lines_per_file", "有效代码行／文件"),
-    ("lines_per_method", "有效代码行／函数"),
+    ("code_size", "非空非注释代码行"),
+    ("lines_per_file", "非空非注释代码行／文件"),
+    ("lines_per_method", "非空非注释代码行／函数"),
     ("cyclomatic_complexity_per_method", "复杂度／函数"),
     ("code_duplication_ratio", "%（差值为百分点）"),
     ("file_duplication_ratio", "%（差值为百分点）"),

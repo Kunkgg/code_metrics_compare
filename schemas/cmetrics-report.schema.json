@@ -59,15 +59,15 @@
       "properties": {
         "huge_headerfile": {
           "$ref": "#/$defs/nonNegativeInteger",
-          "description": "头文件有效代码行阈值，严格大于才超限。"
+          "description": "头文件非空非注释代码行阈值，严格大于才超限。"
         },
         "huge_non_headerfile": {
           "$ref": "#/$defs/nonNegativeInteger",
-          "description": "非头文件有效代码行阈值，严格大于才超限。"
+          "description": "非头文件非空非注释代码行阈值，严格大于才超限。"
         },
         "huge_method": {
           "$ref": "#/$defs/nonNegativeInteger",
-          "description": "函数内部有效代码行阈值，排除定义行，严格大于才超限。"
+          "description": "函数内部非空非注释代码行阈值，排除定义行，严格大于才超限。"
         },
         "huge_cyclomatic_complexity": {
           "$ref": "#/$defs/nonNegativeInteger",
@@ -124,7 +124,7 @@
       "properties": {
         "code_size": {
           "$ref": "#/$defs/nonNegativeInteger",
-          "description": "文件有效代码行总数：所有 file_sizes 三元数组第 1 项之和。"
+          "description": "文件非空非注释代码行总数：所有 file_sizes 三元数组第 1 项之和。"
         },
         "raw_lines": {
           "$ref": "#/$defs/nonNegativeInteger",
@@ -184,7 +184,7 @@
         },
         "huge_headerfile_total": {
           "$ref": "#/$defs/nonNegativeInteger",
-          "description": "有效代码行严格大于 huge_threshold.huge_headerfile 的头文件数。"
+          "description": "非空非注释代码行严格大于 huge_threshold.huge_headerfile 的头文件数。"
         },
         "huge_headerfile_ratio": {
           "$ref": "#/$defs/percentage",
@@ -192,7 +192,7 @@
         },
         "huge_non_headerfile_total": {
           "$ref": "#/$defs/nonNegativeInteger",
-          "description": "有效代码行严格大于 huge_threshold.huge_non_headerfile 的非头文件数。"
+          "description": "非空非注释代码行严格大于 huge_threshold.huge_non_headerfile 的非头文件数。"
         },
         "huge_non_headerfile_ratio": {
           "$ref": "#/$defs/percentage",
@@ -275,7 +275,7 @@
     },
     "fileSize": {
       "type": "array",
-      "description": "固定三元数组 [有效代码行数 nbnc_loc, 文件物理行数 raw_line, 有效重复代码行数]。跨项关系 0 <= 重复行 <= 有效行 <= 物理行须语义校验。",
+      "description": "固定三元数组 [非空非注释代码行数 nbnc_loc, 文件物理行数 raw_line, 有效重复代码行数]。跨项关系 0 <= 重复行 <= 有效行 <= 物理行须语义校验。",
       "minItems": 3,
       "maxItems": 3,
       "prefixItems": [
@@ -304,7 +304,7 @@
         },
         "nbnc_loc": {
           "$ref": "#/$defs/nonNegativeInteger",
-          "description": "函数内部有效代码行，排除函数定义行，不直接等于物理行跨度。"
+          "description": "函数内部非空非注释代码行，排除函数定义行，不直接等于物理行跨度。"
         },
         "cyclomatic_complexity": {
           "$ref": "#/$defs/nonNegativeInteger",

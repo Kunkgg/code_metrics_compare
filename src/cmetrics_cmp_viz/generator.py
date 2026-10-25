@@ -64,7 +64,7 @@ class InternalFileModel:
 
     path: str
     raw_lines: int
-    valid_lines: list[int]  # 有效代码行号集合（1-based 升序）
+    valid_lines: list[int]  # 非空非注释代码行号集合（1-based 升序）
     dup_lines_union: set[int] = field(default_factory=set)
 
 
@@ -101,7 +101,7 @@ class MockDataGenerator:
             paths.append(fpath)
 
             raw_l = rng.randint(20, 2500)
-            # 有效代码行比例 40% ~ 90%
+            # 非空非注释代码行比例 40% ~ 90%
             ratio = rng.uniform(0.4, 0.9)
             nbnc = max(0, min(raw_l, int(raw_l * ratio)))
             if nbnc == 0 and raw_l > 0:

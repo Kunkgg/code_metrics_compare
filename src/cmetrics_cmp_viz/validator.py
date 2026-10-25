@@ -209,7 +209,7 @@ def validate_l2(data: dict[str, Any]) -> list[str]:
     for fname, m_sum in method_nbnc_sum_per_file.items():
         if fname in file_sizes and m_sum > file_sizes[fname][0]:
             errors.append(
-                f"L2: 文件 {fname} 内所有函数 nbnc_loc 之和 ({m_sum}) 超过该文件有效代码行 ({file_sizes[fname][0]})"
+                f"L2: 文件 {fname} 内所有函数 nbnc_loc 之和 ({m_sum}) 超过该文件非空非注释代码行 ({file_sizes[fname][0]})"
             )
 
     # 尾对象最大值三方一致性校验
@@ -228,7 +228,7 @@ def validate_l2(data: dict[str, Any]) -> list[str]:
             )
         if tail_nbnc != actual_max_nbnc:
             errors.append(
-                f"L2: 尾对象 maximum_nbnc_loc ({tail_nbnc}) 与实际函数最大有效代码行 ({actual_max_nbnc}) 不符"
+                f"L2: 尾对象 maximum_nbnc_loc ({tail_nbnc}) 与实际函数最大非空非注释代码行 ({actual_max_nbnc}) 不符"
             )
 
     # 4. 重复代码片段与整文件重复引用

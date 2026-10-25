@@ -250,7 +250,7 @@
     $('#ev-title').textContent = payload.path || '';
     if (payload.kind === 'file') {
       const f = payload.file;
-      const triple = [['有效代码行', f.bN, f.cN], ['物理行', f.bR, f.cR], ['重复行', f.bD, f.cD]].map(([l, b, c]) => `<tr><td>${l}</td><td class="num">${fmtInt(b)}</td><td class="num">${fmtInt(c)}</td></tr>`).join('');
+      const triple = [['非空非注释代码行', f.bN, f.cN], ['物理行', f.bR, f.cR], ['重复行', f.bD, f.cD]].map(([l, b, c]) => `<tr><td>${l}</td><td class="num">${fmtInt(b)}</td><td class="num">${fmtInt(c)}</td></tr>`).join('');
       const methodRows = (label, records) => `<div class="evidence-section"><h3>${label}函数 ${records.length}</h3><div class="evidence-records">${records.map(m => `<div class="raw-row"><strong class="mono">${esc(m.name)}</strong> <span class="muted">L${m.start}–${m.end}</span> <span>行 <b>${fmtInt(m.lines)}</b> · CC <b>${fmtInt(m.cc)}</b></span></div>`).join('') || '<p class="muted">无记录</p>'}</div></div>`;
       const fragBlocks = payload.fragGroups.map(g => {
         const key = `${g.side}:${g.groupId}`;
