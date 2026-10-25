@@ -176,23 +176,78 @@
     else if(row.flags.includes('exited'))labels.push(badge(['unsafe','redundant'].includes(row.kind)?'记录消失':'移出','decrease'));
     else if(row.delta>0)labels.push(badge('增长','growth'));
     else if(row.delta<0)labels.push(badge('减少','decrease'));
-    else if(row.changed)labels.push(badge(row.kind==='folder'?'成员变化':'变化'));
+    else if(row.changed)labels.push(badge(row.kind==='folder'?'成员变化':'位置等变化'));
     return labels.join(' ');
   }
+  const existenceType = () => ['dupfiles','sourceDupfiles','unsafe','redundant'].includes(state.type);
+  const hasException = row => row.flags.some(flag=>['ambiguous','unknown','incomparable'].includes(flag));
+  function matchesStatus(row,status=state.status) {
+    if(status==='all')return true;
+    if(status==='changes')return row.changed;
+    if(status==='exceptions')return hasException(row);
+    return row.flags.includes(status)&&(!thresholdKey(state.type)||!['entered','exited'].includes(status)||!row.flags.includes('incomparable'));
+  }
+  function numberMeasure() {
+    if(['cc','hugeCC'].includes(state.type))return {name:'圈复杂度',unit:''};
+    if(state.type==='folders')return {name:'直接成员数',unit:'个'};
+    if(['duplication','sourceDuplication'].includes(state.type))return {name:'重复行数',unit:'行'};
+    return {name:'代码行数',unit:'行'};
+  }
+  function numberFields() {
+    const {name}=numberMeasure();
+    return [['c',`当前${name}`],['b',`基线${name}`],['increase',`增加的${name}`],['decrease',`减少的${name}`]];
+  }
+  function matchesNumber(row,condition=state.numberFilter) {
+    if(!condition)return true;
+    let value=row[condition.field];
+    if(['increase','decrease'].includes(condition.field)) {
+      if(row.delta==null||row.flags.includes('incomparable'))return false;
+      if(condition.field==='increase'?row.delta<=0:row.delta>=0)return false;
+      value=condition.field==='increase'?row.delta:-row.delta;
+    }
+    if(value==null)return false;
+    return condition.operator==='gte'?value>=condition.value:condition.operator==='lte'?value<=condition.value:value>=condition.value&&value<=condition.upper;
+  }
+  function numberDescription(condition=state.numberFilter) {
+    if(!condition)return '';
+    const name=numberFields().find(([field])=>field===condition.field)[1],unit=numberMeasure().unit;
+    const show=value=>Number(value).toLocaleString('zh-CN',{maximumSignificantDigits:21});
+    return `${name}${condition.operator==='gte'?'至少':condition.operator==='lte'?'不超过':'介于'} ${show(condition.value)}${condition.operator==='between'?` 到 ${show(condition.upper)}`:''}${unit?` ${unit}`:''}`;
+  }
+  function statusOptions() {
+    if(thresholdKey(state.type))return [['changes','全部变化'],['entered','新增超限'],['exited','退出超限'],['all','全部对象']];
+    if(existenceType())return [['changes','全部变化'],['entered',['dupfiles','sourceDupfiles'].includes(state.type)?'进入重复清单':'记录新增'],['exited',['dupfiles','sourceDupfiles'].includes(state.type)?'退出重复清单':'记录消失'],['all','全部记录']];
+    return [['changes','全部变化'],['growth','只看增长'],['decrease','只看减少'],['all','全部对象']];
+  }
+  const sortIdentity = () => ['methodLines','cc','hugeMethod','hugeCC','unsafe'].includes(state.type)?'名称':'路径';
+  function sortDescription() {
+    const [field,direction]=state.sort.split(':');
+    if(field==='path')return `${sortIdentity()}${direction==='asc'?' A → Z':' Z → A'}`;
+    if(existenceType())return direction==='desc'?'新增在前':'消失在前';
+    return `${{b:'基线',c:'当前',delta:'变化'}[field]}${direction==='asc'?'从小到大':'从大到小'}`;
+  }
+  function sortHeader(field,label,numeric=false) {
+    const [active,direction]=state.sort.split(':'),selected=active===field;
+    const next=selected?(direction==='desc'?'asc':'desc'):(field==='path'?'asc':'desc');
+    const hint=field==='path'?`按${sortIdentity()}${next==='asc'?' A 到 Z':' Z 到 A'}排序`:existenceType()?`${next==='desc'?'新增':'消失'}在前`:`按${label}${next==='asc'?'从小到大':'从大到小'}排序`;
+    return `<th ${numeric?'class="num"':''} aria-sort="${selected?(direction==='asc'?'ascending':'descending'):'none'}"><button class="sort-header ${selected?'sorted':''}" data-action="sort" data-value="${field}" aria-label="${hint}" title="${hint}">${label}<span aria-hidden="true">${selected?(direction==='desc'?'↓':'↑'):'↕'}</span></button></th>`;
+  }
   function queriedRows() {
-    let rows=rowsFor(state.type);const allCount=rows.length,scope=state.exactFile||(state.searchScope==='all'?'':state.directory);
-    rows=rows.filter(r=>state.exactFile?r.path===state.exactFile:inDirectory(r.path,scope));const scopeCount=rows.length;
-    const q=state.query.trim().toLowerCase();if(q)rows=rows.filter(r=>`${r.path} ${r.name}`.toLowerCase().includes(q));
-    if(state.status==='changes')rows=rows.filter(r=>r.changed);else if(state.status!=='all')rows=rows.filter(r=>r.flags.includes(state.status)&&(!thresholdKey(state.type)||!['entered','exited'].includes(state.status)||!r.flags.includes('incomparable')));
-    const min=state.min===''?null:Number(state.min),max=state.max===''?null:Number(state.max);
-    if(min!=null||max!=null)rows=rows.filter(r=>r[state.numeric]!=null&&(min==null||r[state.numeric]>=min)&&(max==null||r[state.numeric]<=max));
+    const all=rowsFor(state.type),scope=state.exactFile||(state.searchScope==='all'?'':state.directory);
+    const scopeRows=all.filter(r=>state.exactFile?r.path===state.exactFile:inDirectory(r.path,scope));
+    const q=state.query.trim().toLowerCase();
+    const candidates=scopeRows.filter(r=>(!q||`${r.path} ${r.name}`.toLowerCase().includes(q))&&matchesNumber(r));
+    const rows=candidates.filter(r=>matchesStatus(r));
     rows.sort((a,b)=>{
-      if(state.sort==='path')return `${a.path}/${a.name}`.localeCompare(`${b.path}/${b.name}`);
       const [field,direction]=state.sort.split(':');
+      if(field==='path') {
+        const identity=row=>sortIdentity()==='名称'?`${row.name}/${row.path}`:row.path;
+        return identity(a).localeCompare(identity(b))*(direction==='asc'?1:-1);
+      }
       if(a[field]==null&&b[field]==null)return a.path.localeCompare(b.path);if(a[field]==null)return 1;if(b[field]==null)return -1;
       return (a[field]-b[field])*(direction==='asc'?1:-1)||a.path.localeCompare(b.path);
     });
-    return {rows,allCount,scopeCount,scope};
+    return {rows,candidates,allCount:all.length,scopeCount:scopeRows.length,exceptions:scopeRows.filter(hasException),scope};
   }
   function aggregate(dir,type) {
     const result={};
@@ -232,18 +287,37 @@
     return `${comparisonHeader()}<div class="section-head"><h1>概览</h1><span class="color-key"><i></i>增长 / 新增</span></div><div class="metrics-grid">${mainMetrics.slice(0,4).map(metricCard).join('')}</div><div class="section-head"><h2>新增超限</h2><span class="muted small">${mainMetrics.slice(8).filter(m=>{const t=transition(m[2]);return t.entered>0&&!t.limited;}).length} 类指标有新增</span></div><div class="metrics-grid threshold-grid">${mainMetrics.slice(8).map(metricCard).join('')}</div><div class="section-head"><h2>重复与问题</h2></div><div class="metrics-grid">${mainMetrics.slice(4,8).map(metricCard).join('')}</div><div class="overview-grid"><section class="panel">${chart()}</section><section class="panel"><div class="panel-head"><h2>文件代码行增长</h2><button class="text" data-action="growth-files">全部 ${growth.length} 个 ↗</button></div><table><thead><tr><th>文件</th><th class="num">基线</th><th class="num">当前</th><th class="num">增长</th></tr></thead><tbody>${growth.slice(0,8).map(r=>`<tr><td><button class="row-title mono" data-action="open-file" data-value="${esc(r.path)}" data-type="code">${esc(r.path)}</button></td><td class="num">${fmt(r.b)}</td><td class="num">${fmt(r.c)}</td><td class="num up">${deltaText(r.delta)}</td></tr>`).join('')}</tbody></table></section></div>`;
   }
   function tree() {
-    return `<div class="panel-head"><h3>目录</h3><span class="small muted" title="当前文件数，包含子目录中的文件；可分析两次扫描的路径并集">当前文件</span></div><div class="directory-tree">${model.dirs.map(dir=>`<button data-action="directory" data-value="${esc(dir)}" class="${state.directory===dir?'active':''}" style="padding-left:${8+(dir?dir.split('/').length-1:0)*10}px"><span class="folder-icon">${dir?'▱':'▦'}</span><span>${esc(dir?dir.split('/').pop():'全部')}</span><span class="tree-count">${Object.keys(model.sides.current.files).filter(path=>inDirectory(path,dir)).length}</span></button>`).join('')}</div>`;
+    return `<div class="panel-head"><h3>目录</h3><span class="small muted" title="当前文件数，包含子目录中的文件；可分析两次扫描的路径并集">当前文件</span></div><p class="tree-guide">点击目录限定查找范围；选“全部”查整个报告。</p><div class="directory-tree">${model.dirs.map(dir=>`<button data-action="directory" data-value="${esc(dir)}" class="${state.directory===dir?'active':''}" style="padding-left:${8+(dir?dir.split('/').length-1:0)*10}px"><span class="folder-icon">${dir?'▱':'▦'}</span><span>${esc(dir?dir.split('/').pop():'全部')}</span><span class="tree-count">${Object.keys(model.sides.current.files).filter(path=>inDirectory(path,dir)).length}</span></button>`).join('')}</div>`;
   }
-  function controls() {
-    const statuses=[['changes','变化项'],['all','全部'],...Object.entries(statusNames).map(([k,v])=>[k,thresholdKey(state.type)&&k==='entered'?'新增超限':thresholdKey(state.type)&&k==='exited'?'退出超限':v])];
-    return `<form id="query-form"><div class="toolbar"><input class="search" name="query" aria-label="搜索路径或函数名" placeholder="搜索路径、函数名" value="${esc(state.query)}"><select data-change="status" aria-label="变化状态">${statuses.map(([v,n])=>`<option value="${v}" ${state.status===v?'selected':''}>${n}</option>`).join('')}</select><button type="submit" class="primary">查询</button><button type="button" class="text" data-action="reset">重置</button></div><details class="advanced" ${state.advanced?'open':''}><summary>筛选与排序</summary><div class="filter-grid"><label>范围<select data-change="searchScope" aria-label="查询范围"><option value="directory" ${state.searchScope==='directory'?'selected':''}>当前目录</option><option value="all" ${state.searchScope==='all'?'selected':''}>全部目录</option></select></label><label>排序<select data-change="sort" aria-label="排序">${[['delta:desc','变化 ↓'],['delta:asc','变化 ↑'],['b:desc','基线 ↓'],['b:asc','基线 ↑'],['c:desc','当前 ↓'],['c:asc','当前 ↑'],['path','路径 A → Z']].map(([v,n])=>`<option value="${v}" ${state.sort===v?'selected':''}>${n}</option>`).join('')}</select></label><label>数值<select data-change="numeric" aria-label="数值筛选字段">${[['delta','变化'],['b','基线'],['c','当前']].map(([v,n])=>`<option value="${v}" ${state.numeric===v?'selected':''}>${n}</option>`).join('')}</select></label><label>最小值<input name="min" type="number" step="any" aria-label="最小值" placeholder="不限" value="${esc(state.min)}"></label><label>最大值<input name="max" type="number" step="any" aria-label="最大值" placeholder="不限" value="${esc(state.max)}"></label></div></details></form>`;
+  function queryPurpose() {
+    if(['cc','hugeCC'].includes(state.type))return ['函数','比较每个函数的圈复杂度；数值越大，函数中的分支和判断通常越多。'];
+    if(['methodLines','hugeMethod'].includes(state.type))return ['函数','比较每个函数的有效代码行数，不计空行和注释。'];
+    if(['duplication','sourceDuplication'].includes(state.type))return ['文件','查找重复代码发生变化的文件。下方比较的是重复行数，不是百分比。'];
+    if(['dupfiles','sourceDupfiles'].includes(state.type))return ['文件','查看哪些文件进入或退出扫描给出的重复文件清单，可选中文件查看两侧重复组。'];
+    if(state.type==='unsafe')return ['调用位置','查看扫描标记的危险函数调用位置。记录新增或消失表示该位置出现在某一侧扫描中，不直接证明问题新增或修复。'];
+    if(state.type==='redundant')return ['代码块','查看扫描标记的冗余代码块起始位置。记录新增或消失表示该位置出现在某一侧扫描中，不直接证明问题新增或修复。'];
+    if(state.type==='folders')return ['目录','比较目录直接包含的文件数与子目录数，不累计子目录内部的文件。'];
+    return ['文件','比较每个文件的有效代码行数，不计空行和注释。'];
+  }
+  function emptyQuery(q) {
+    if(!q.scopeCount)return '<tr><td colspan="5" class="empty">这个范围内没有当前类型的记录。请在左侧选择其他目录，或切换指标。</td></tr>';
+    const message=!state.query&&!state.numberFilter&&state.status==='changes'?'这个范围内没有变化或异常。':'没有同时满足上方条件的对象。';
+    return `<tr><td colspan="5" class="empty">${message}<br><button class="text" data-action="show-all">查看本范围全部 ${q.scopeCount} 项</button></td></tr>`;
+  }
+  function controls(q) {
+    const options=statusOptions(),hasConditions=state.query||state.numberFilter||state.status!=='changes'||state.sort!=='delta:desc',[noun,purpose]=queryPurpose();
+    const condition=state.numberFilter||{field:'c',operator:'gte',value:'',upper:''},{name,unit}=numberMeasure();
+    return `<div class="query-controls"><div class="query-intro"><h3>查找要检查的${noun}</h3><p>${purpose}</p></div><form id="query-form" role="search"><input class="search" name="query" aria-label="搜索路径或名称" placeholder="输入路径或名称，即时查找" value="${esc(state.query)}">${state.query?'<button type="button" class="text" data-action="clear-search">清空搜索</button>':''}</form><div class="query-tabs" role="group" aria-label="查看哪类变化">${options.map(([value,label])=>`<button data-action="status" data-value="${value}" aria-pressed="${state.status===value}" class="${state.status===value?'active':''}">${label}<span>${q.candidates.filter(row=>matchesStatus(row,value)).length}</span></button>`).join('')}</div>${state.status==='changes'&&!existenceType()?'<p class="change-guide">数值未变但位置、其他度量或关联关系有变化的对象，以及数据异常，也会保留。</p>':''}<div class="query-tools">${!existenceType()?`<button class="text" data-action="edit-number">${state.numberFilter?'修改数值条件':'按数值缩小范围'}</button><span class="muted">明细：${name}${unit?` / ${unit}`:''}</span>`:''}<span class="spacer"></span>${hasConditions?'<button class="text" data-action="reset">恢复默认</button>':''}</div>${state.numberFilter?`<div class="applied-conditions"><span>${esc(numberDescription())}</span><button class="text" data-action="clear-number" aria-label="移除数值条件">×</button></div>`:''}${state.numberEditor?`<form id="number-form" class="number-editor"><div class="number-sentence"><span>只看</span><select name="field" aria-label="筛选的度量">${numberFields().map(([field,label])=>`<option value="${field}" ${field===condition.field?'selected':''}>${label}</option>`).join('')}</select><select name="operator" data-change="numberOperator" aria-label="数值要求">${[['gte','至少'],['lte','不超过'],['between','介于']].map(([value,label])=>`<option value="${value}" ${value===condition.operator?'selected':''}>${label}</option>`).join('')}</select><input name="value" type="number" min="0" step="any" required aria-label="数量" placeholder="输入数量" value="${condition.value}"><span class="number-upper" ${condition.operator==='between'?'':'hidden'}>到 <input name="upper" type="number" min="0" step="any" ${condition.operator==='between'?'required':''} aria-label="区间终点" placeholder="输入数量" value="${condition.upper??''}"></span><span>${unit}</span></div><p>例如“减少的${name}至少 ${unit?'100 '+unit:'10'}”，表示减少这么多或更多，无需输入负数。应用后从全部对象中查找。</p><div class="row"><button type="submit" class="primary">应用条件</button><button type="button" data-action="cancel-number">取消</button></div></form>`:''}${q.exceptions.length?`<div class="query-warning"><span>本范围有 ${q.exceptions.length} 项数据异常，其中 ${q.rows.filter(hasException).length} 项在当前结果中。异常可能是数值未知、同名无法配对或比较口径不同。</span><button class="text" data-action="exceptions" aria-pressed="${state.status==='exceptions'}">查看异常 ${q.exceptions.length} 项</button></div>`:''}<div class="query-summary" aria-live="polite"><span>${state.status==='exceptions'?'数据异常':options.find(([value])=>value===state.status)?.[1]||statusNames[state.status]} · 找到 ${q.rows.length} 项（本范围共 ${q.scopeCount} 项）</span><span>排序：${sortDescription()}</span></div><p class="sort-guide">点击表格列名排序，再点一次反向；选中一行查看定位证据。</p></div>`;
   }
   function table() {
     const q=queriedRows(),pages=Math.max(1,Math.ceil(q.rows.length/state.pageSize));state.page=Math.min(state.page,pages);
     const slice=q.rows.slice((state.page-1)*state.pageSize,state.page*state.pageSize),key=thresholdKey(state.type);
     const additive=['code','duplication','sourceDuplication','methodLines','cc'].includes(state.type),scope=additive?aggregate(q.scope,state.type):null;
     const detailLabel={code:'文件代码行',duplication:'重复代码行',sourceDuplication:'源代码重复行',methodLines:'函数代码行',cc:'圈复杂度'}[state.type];
-    return `<div class="scope-title"><strong>${esc(q.scope||'全部目录')}</strong><span class="spacer"></span><span class="muted">${q.rows.length} 项</span></div>${controls()}${key?`<div class="threshold-note">超限阈值 <b>&gt; ${model.sides.baseline.summary.huge_threshold[key]}${model.sides.baseline.summary.huge_threshold[key]!==model.sides.current.summary.huge_threshold[key]?` → > ${model.sides.current.summary.huge_threshold[key]}`:''}</b>${state.type==='folders'?' 个直接成员':''}</div>`:''}${scope?`<div class="scope-total" title="当前目录完整数据，不受表内筛选影响${['cc','methodLines'].includes(state.type)?'；同名函数按两侧原始值各自求和':''}"><span>${state.exactFile?'':'目录'}${detailLabel}合计</span><b>${fmt(scope.baseline.value)}</b><span>→</span><b>${fmt(scope.current.value)}</b><span class="${cls(scope.delta)}">${deltaText(scope.delta)}</span>${scope.current.valid!==scope.current.count?badge(`${scope.current.valid}/${scope.current.count} 有效`,'warning'):''}</div>`:''}<div class="table-wrap"><table class="data-table"><thead><tr><th>${state.type==='folders'?'目录':state.type==='cc'||state.type==='methodLines'||state.type==='hugeMethod'||state.type==='hugeCC'?'函数':'对象'}</th><th class="num">基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</th><th class="num">当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</th><th class="num">变化</th><th>标记</th></tr></thead><tbody>${slice.length?slice.map(row=>`<tr class="${state.selected===row.id?'selected':''}"><td><button class="row-title ${row.kind==='file'||row.kind==='folder'?'mono':''}" data-action="select" data-value="${esc(row.id)}">${esc(row.kind==='file'||row.kind==='folder'?row.path:row.name)}</button>${row.kind==='method'?`<span class="row-subtitle mono">${esc(row.path)}</span>`:['unsafe','redundant'].includes(row.kind)?`<span class="row-subtitle mono">${esc(row.path)} : ${row.line}</span>`:row.kind==='folder'?`<span class="row-subtitle"><span class="${row.addedMembers?'up':''}">新增 ${row.addedMembers}</span> / 移出 ${row.removedMembers}</span>`:''}</td><td class="num">${row.ambiguous?`${row.before.length} 条`:fmt(row.b)}</td><td class="num">${row.ambiguous?`${row.after.length} 条`:fmt(row.c)}</td><td class="num ${row.flags.includes('incomparable')?'muted':cls(row.delta)}">${deltaText(row.delta)}</td><td><div class="status-list">${rowStatus(row)}</div></td></tr>`).join(''):'<tr><td colspan="5" class="empty">无匹配数据 <button class="text" data-action="reset">重置</button></td></tr>'}</tbody></table></div><div class="pagination"><span>${q.rows.length} 项</span><div class="row"><button data-action="page" data-value="-1" ${state.page===1?'disabled':''} aria-label="上一页">←</button><span>${state.page} / ${pages}</span><button data-action="page" data-value="1" ${state.page===pages?'disabled':''} aria-label="下一页">→</button></div></div>`;
+    const measure=state.type==='folders'?'直接成员数':state.type==='hugeCC'?'圈复杂度':'代码行数';
+    const baselineLimit=model.sides.baseline.summary.huge_threshold[key],currentLimit=model.sides.current.summary.huge_threshold[key];
+    const thresholdText=baselineLimit===currentLimit?`${measure}超过 <b>${baselineLimit}</b> 才算超限；等于阈值不算。`:`基线：${measure}超过 <b>${baselineLimit}</b>；当前：超过 <b>${currentLimit}</b>。等于各侧阈值不算超限。阈值不同，不能可靠判断新增或退出超限。`;
+    return `<div class="scope-title"><div><small>查找范围</small><strong>${esc(q.scope||'全部目录')}${q.scope&&!state.exactFile?' / 含子目录':''}</strong></div><span class="spacer"></span></div>${controls(q)}${key?`<div class="threshold-note">${thresholdText}<p>新增超限：基线未超限，当前超限。退出超限：基线超限，当前未超限。</p></div>`:''}${scope?`<div class="scope-total" title="当前目录完整数据，不受表内筛选影响${['cc','methodLines'].includes(state.type)?'；同名函数按两侧原始值各自求和':''}"><span>完整范围 · ${detailLabel}合计</span><b>${fmt(scope.baseline.value)}</b><span>→</span><b>${fmt(scope.current.value)}</b><span class="${cls(scope.delta)}">${deltaText(scope.delta)}</span>${scope.current.valid!==scope.current.count?badge(`${scope.current.valid}/${scope.current.count} 有效`,'warning'):''}</div>`:''}<p class="value-guide">基线：用于对照的版本；当前：本次分析的版本。${existenceType()?'“有记录 / 无记录”表示该位置或文件是否在对应扫描清单中。':'变化 = 当前 − 基线。筛选仅影响明细，上方汇总保留完整范围。'}</p><div class="table-wrap"><table class="data-table"><thead><tr>${sortHeader('path',queryPurpose()[0])}${existenceType()?'<th class="num">基线</th><th class="num">当前</th>':`${sortHeader('b',`基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}`,true)}${sortHeader('c',`当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}`,true)}`}${sortHeader('delta','变化',true)}<th>标记</th></tr></thead><tbody>${slice.length?slice.map(row=>`<tr class="${state.selected===row.id?'selected':''}"><td><button class="row-title ${row.kind==='file'||row.kind==='folder'?'mono':''}" data-action="select" data-value="${esc(row.id)}">${esc(row.kind==='file'||row.kind==='folder'?row.path:row.name)}</button>${row.kind==='method'?`<span class="row-subtitle mono">${esc(row.path)}</span>`:['unsafe','redundant'].includes(row.kind)?`<span class="row-subtitle mono">${esc(row.path)} : ${row.line}</span>`:row.kind==='folder'?`<span class="row-subtitle"><span class="${row.addedMembers?'up':''}">新增 ${row.addedMembers}</span> / 移出 ${row.removedMembers}</span>`:''}</td><td class="num">${row.ambiguous?`${row.before.length} 条`:existenceType()?(row.b?'有记录':'无记录'):fmt(row.b)}</td><td class="num">${row.ambiguous?`${row.after.length} 条`:existenceType()?(row.c?'有记录':'无记录'):fmt(row.c)}</td><td class="num ${row.flags.includes('incomparable')?'muted':cls(row.delta)}">${existenceType()?(row.delta>0?'新增':row.delta<0?'消失':'未变'):deltaText(row.delta)}</td><td><div class="status-list">${rowStatus(row)}</div></td></tr>`).join(''):emptyQuery(q)}</tbody></table></div><div class="pagination"><span>${q.rows.length} 项</span><div class="row"><button data-action="page" data-value="-1" ${state.page===1?'disabled':''} aria-label="上一页">←</button><span>${state.page} / ${pages}</span><button data-action="page" data-value="1" ${state.page===pages?'disabled':''} aria-label="下一页">→</button></div></div>`;
   }
   function positionText(path,line,side,name='') {
     return `${side}：${path}:${line}${name?`（${name}）`:''}`;
@@ -294,7 +368,7 @@
       for(const [side,items] of [['基线',row.before],['当前',row.after]])content+=`<div class="evidence-section"><h3>${side} / ${items.length} 条</h3>${items.map(m=>`<div class="raw-row"><strong class="mono">${esc(m.method_name)}</strong><span class="muted"> L${m.start_line}–${m.end_line}</span><p>代码行 <b>${m.nbnc_loc}</b> / 圈复杂度 <b>${m.cyclomatic_complexity}</b></p><button class="text" data-action="fragment" data-value="${esc(positionText(row.path,m.start_line,side,row.name))}">复制位置</button></div>`).join('')||'<p class="muted">无记录</p>'}</div>`;
     } else if(row.kind==='folder')content+=folderEvidence(row);
     else content+='<p class="muted small">位置变化不等同于问题新增或修复。</p>';
-    return `<div class="evidence"><div class="evidence-head"><div class="row between"><h2 class="object-path mono">${esc(row.kind==='method'?row.name:row.path)}</h2>${state.trail.length?'<button class="text" data-action="back">← 返回</button>':''}</div>${row.kind==='method'?`<p class="mono muted small">${esc(row.path)}</p>`:''}<div class="status-list">${rowStatus(row)}</div></div><div class="pair-values"><div><small>基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':fmt(row.b)}</strong></div><span class="pair-arrow">→</span><div><small>当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':fmt(row.c)}</strong></div><div class="pair-delta ${row.flags.includes('incomparable')?'muted':cls(row.delta)}"><small>变化</small><strong>${deltaText(row.delta)}</strong></div></div>${content}${copyBlock(row)}</div>`;
+    return `<div class="evidence"><div class="evidence-head"><div class="row between"><h2 class="object-path mono">${esc(row.kind==='method'?row.name:row.path)}</h2>${state.trail.length?'<button class="text" data-action="back">← 返回</button>':''}</div>${row.kind==='method'?`<p class="mono muted small">${esc(row.path)}</p>`:''}<div class="status-list">${rowStatus(row)}</div></div><div class="pair-values"><div><small>基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':existenceType()?(row.b?'有记录':'无记录'):fmt(row.b)}</strong></div><span class="pair-arrow">→</span><div><small>当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':existenceType()?(row.c?'有记录':'无记录'):fmt(row.c)}</strong></div><div class="pair-delta ${row.flags.includes('incomparable')?'muted':cls(row.delta)}"><small>变化</small><strong>${existenceType()?(row.delta>0?'新增':row.delta<0?'消失':'未变'):deltaText(row.delta)}</strong></div></div>${content}${copyBlock(row)}</div>`;
   }
   function fractionObjects(side,scope,key) {
     const s=model.sides[side],[numerator,denominator]=metricFraction(key),objects=new Map(),issues=[];
@@ -401,7 +475,8 @@
     console.info('[prototype state]',structuredClone(state));
   }
   function resetEvidence(){state.locationOverride=null;state.groups={baseline:null,current:null};state.memberStatus='changes';state.memberQuery='';state.memberPage=1;}
-  function resetQuery(){Object.assign(state,{query:'',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',searchScope:'directory',page:1,selected:null,exactFile:null,advanced:false,contributionPage:1});resetEvidence();}
+  function resetQuery(){Object.assign(state,{query:'',status:'changes',sort:'delta:desc',numberFilter:null,numberEditor:false,searchScope:'directory',page:1,selected:null,exactFile:null,contributionPage:1});resetEvidence();}
+  function refreshQuery(){state.page=1;state.selected=null;state.trail=[];resetEvidence();selectInitial();safeRender();}
   function selectInitial(){const rows=queriedRows().rows;state.selected=(rows.find(r=>r.path==='src/core/parser.c'&&!r.ambiguous)||rows[0])?.id??null;}
   function remember(){const {trail,...context}=state;state.trail.push(structuredClone(context));}
   function openFile(path,type='code',retainTrail=false){if(retainTrail)remember();else state.trail=[];resetQuery();state.view='workspace';selectMetric(defaultMetric(type));state.directory='';state.query=path;state.searchScope='all';state.status='all';state.selected=`file:${path}`;syncURL();}
@@ -422,7 +497,15 @@
     if(action==='view'){state.view=value;if(value==='workspace'&&!state.selected)selectInitial();syncURL();}
     if(action==='page'){state.page+=Number(value);state.selected=null;resetEvidence();}
     if(action==='select'){state.selected=value;state.trail=[];resetEvidence();}
-    if(action==='reset'){resetQuery();selectInitial();}
+    if(action==='reset'){state.query='';state.status='changes';state.sort='delta:desc';state.numberFilter=null;state.numberEditor=false;state.page=1;state.selected=null;resetEvidence();selectInitial();}
+    if(action==='show-all'){state.query='';state.status='all';state.numberFilter=null;state.numberEditor=false;refreshQuery();return;}
+    if(action==='status'){state.status=value;if(state.sort.startsWith('delta:'))state.sort=`delta:${['decrease','exited'].includes(value)?'asc':'desc'}`;state.numberEditor=false;refreshQuery();return;}
+    if(action==='exceptions'){state.status='exceptions';state.query='';state.numberFilter=null;state.numberEditor=false;refreshQuery();return;}
+    if(action==='clear-search'){state.query='';refreshQuery();return;}
+    if(action==='clear-number'){state.numberFilter=null;state.numberEditor=false;refreshQuery();return;}
+    if(action==='edit-number'){state.numberEditor=true;safeRender();$('#number-form [name="value"]').focus();return;}
+    if(action==='cancel-number'){state.numberEditor=false;safeRender();return;}
+    if(action==='sort'){const [field,direction]=state.sort.split(':');state.sort=`${value}:${field===value?(direction==='desc'?'asc':'desc'):value==='path'?'asc':'desc'}`;state.numberEditor=false;refreshQuery();return;}
     if(action==='analysis-type'&&value===state.metric)return;
     if(action==='metric'||action==='analysis-type'){resetQuery();state.directory='';selectMetric(action==='analysis-type'?value:target.dataset.metric||defaultMetric(value));state.view='workspace';state.trail=[];if(target.dataset.status)state.status=target.dataset.status;selectInitial();syncURL();}
     if(action==='contributor'){
@@ -441,26 +524,34 @@
     if(action==='analysis-type')document.querySelector(`.analysis-metrics [data-value="${state.metric}"]`)?.focus({preventScroll:true});
     if(['view','metric','directory','growth-files','open-file'].includes(action))window.scrollTo(0,0);
   });
+  document.addEventListener('input',event=>{
+    if(event.target.form?.id==='number-form'){event.target.form.elements.upper.setCustomValidity('');return;}
+    if(event.isComposing||event.target.name!=='query'||event.target.form?.id!=='query-form')return;
+    const start=event.target.selectionStart,end=event.target.selectionEnd;
+    state.query=event.target.value;state.numberEditor=false;
+    if(state.exactFile&&state.query!==state.exactFile)state.exactFile=null;
+    refreshQuery();const input=$('#query-form [name="query"]');input.focus();input.setSelectionRange(start,end);
+  });
   document.addEventListener('change',event=>{
     const key=event.target.dataset.change;if(!key)return;
+    if(key==='numberOperator'){const form=event.target.form,between=event.target.value==='between';form.querySelector('.number-upper').hidden=!between;form.elements.upper.required=between;form.elements.upper.setCustomValidity('');return;}
     if(key==='memberQuery'){state.memberQuery=event.target.value;state.memberPage=1;safeRender();return;}
-    const form=event.target.closest('form');if(form){const draft=new FormData(form);state.query=String(draft.get('query')??'');state.min=String(draft.get('min')??'');state.max=String(draft.get('max')??'');state.advanced=form.querySelector('details').open;}
-    if(state.exactFile&&state.query!==state.exactFile)state.exactFile=null;
     state[key]=event.target.value;state.page=1;state.selected=null;state.trail=[];resetEvidence();
-    if(key==='searchScope')state.contributionPage=1;
     if(key==='scenario'){model=buildModel();resetQuery();}
-
     selectInitial();safeRender();
   });
   document.addEventListener('submit',event=>{
-    if(event.target.id!=='query-form')return;event.preventDefault();const form=new FormData(event.target);
-    state.query=String(form.get('query'));if(state.query!==state.exactFile)state.exactFile=null;state.min=String(form.get('min'));state.max=String(form.get('max'));state.advanced=event.target.querySelector('details').open;state.page=1;state.trail=[];resetEvidence();selectInitial();safeRender();
+    if(event.target.id==='query-form'){event.preventDefault();return;}
+    if(event.target.id!=='number-form')return;event.preventDefault();
+    const form=event.target,data=new FormData(form),operator=String(data.get('operator')),value=Number(data.get('value')),upper=Number(data.get('upper'));
+    if(operator==='between'&&upper<value){form.elements.upper.setCustomValidity('区间终点不能小于前面的数量');form.elements.upper.reportValidity();return;}
+    state.numberFilter={field:String(data.get('field')),operator,value,...operator==='between'?{upper}:{}};state.numberEditor=false;state.status='all';if(state.sort.startsWith('delta:'))state.sort=`delta:${state.numberFilter.field==='decrease'?'asc':'desc'}`;refreshQuery();
   });
   window.addEventListener('popstate',()=>{const view=new URLSearchParams(location.search).get('view');state.view=['overview','workspace','metrics'].includes(view)?view:'overview';safeRender();});
   try {
     DATA=JSON.parse($('#report-data').textContent);
     const params=new URLSearchParams(location.search),view=params.get('view')||(params.get('variant')==='B'?'workspace':'overview');
-    state={scenario:'normal',view:['overview','workspace','metrics'].includes(view)?view:'overview',type:'code',metric:'code_size',directory:'',query:'',searchScope:'directory',status:'changes',sort:'delta:desc',numeric:'delta',min:'',max:'',page:1,pageSize:10,selected:null,exactFile:null,locationOverride:null,groups:{baseline:null,current:null},memberStatus:'changes',memberQuery:'',memberPage:1,contributionPage:1,advanced:false,trail:[]};
+    state={scenario:'normal',view:['overview','workspace','metrics'].includes(view)?view:'overview',type:'code',metric:'code_size',directory:'',query:'',searchScope:'directory',status:'changes',sort:'delta:desc',numberFilter:null,numberEditor:false,page:1,pageSize:10,selected:null,exactFile:null,locationOverride:null,groups:{baseline:null,current:null},memberStatus:'changes',memberQuery:'',memberPage:1,contributionPage:1,trail:[]};
     model=buildModel();selectInitial();if(params.get('failInit')==='1')throw new Error('模拟初始化失败');render();
   }catch(error){fail(error);}
 })();

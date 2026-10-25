@@ -58,7 +58,7 @@ uv run python -m cmetrics_cmp_viz.prototype --open
 - 超大目录阈值为 **50，严格大于才超限**。`src/expanded` 为 50 → 52，`src/trimmed` 为 52 → 50；`src/bulk` 为 52 → 52，但有新增 2、移出 2 个直接成员。
 - 重复片段支持两侧独立选组、当前文件高亮、关联文件变化及位置复制。`parser.c` 重复行 40 → 70，关联 `shared.c` 保持 40 → 40；不会按组号匹配前后版本。
 - 正常合成夹具继续执行现有 L0–L3 校验，但这些工程层级不出现在报告页面。校验不代替真实数据或容量验收。
-- 表格支持目录 / 全报告当前类型范围、标识搜索、变化状态、两侧原值与差值的数值筛选和排序，以及全量查询后的分页。搜索不含源码，也不是跨类型全文搜索。
+- 明细按阅读任务组织：点击目录限定范围，输入路径或名称即时查找，直接选择增长、减少或清单进出；点击表头排序。可选数值条件使用“当前代码行数至少 1000 行”“减少的代码行数至少 100 行”等带单位的表达，应用后持续显示，可单独移除。页面就地说明比较对象、基线/当前、超限含义与筛选范围；异常始终有提示和查看入口。筛选排序覆盖全部结果后分页，搜索不含源码，也不是跨类型全文搜索。
 - 文件可关联函数、重复片段、重复文件、危险函数和冗余块；文件/目录复制路径，具体位置复制“基线/当前：路径:行号（名称）”，同名无法配对时保留中文提示。
 - 顶部切换“异常样例”，查看汇总冲突、重复行未知、阈值变化及目录成员覆盖差异。异常只注入内存副本，不改变已校验的正常 JSON；不可比较的进出不显示为零。
 - 禁用脚本仍有 Python 预生成的正常夹具静态概览；加 `?failInit=1` 可演示初始化失败兜底。兜底明确表示交互不可用。
@@ -71,7 +71,7 @@ uv run python -m cmetrics_cmp_viz.prototype --seed 42 --output-dir output/protot
 uv run python -m cmetrics_cmp_viz.prototype --production-preview --output-dir output/prototype-preview
 ```
 
-源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。最新均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
+源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。筛选排序与就地说明见 [第七轮记录](.scratch/report-ui-prototype/issues/07-task-filters.md)，定位文本见 [第六轮记录](.scratch/report-ui-prototype/issues/06-simple-location.md)，均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
 
 ## 模拟数据生成与校验 (P0)
 
