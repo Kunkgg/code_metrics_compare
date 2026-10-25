@@ -17,14 +17,6 @@
   const union = (a,b) => [...new Set([...a,...b])];
   const total = (items, getter) => items.reduce((sum,item) => sum + getter(item),0);
   const knownDelta = (b,c) => b == null || c == null ? null : Math.round((c-b)*1e6)/1e6;
-  const mainMetrics = [
-    ['code_size','行','code'],['lines_per_file','行 / 文件','code'],
-    ['lines_per_method','行 / 函数','methodLines'],['cyclomatic_complexity_per_method','','cc'],
-    ['code_duplication_ratio','%','duplication'],['file_duplication_ratio','%','dupfiles'],
-    ['unsafe_functions_total','处','unsafe'],['redundant_code_total','块','redundant'],
-    ['huge_cyclomatic_complexity_total','个','hugeCC'],['huge_method_total','个','hugeMethod'],
-    ['huge_headerfile_total','个','hugeHeader'],['huge_non_headerfile_total','个','hugeSource'],['huge_folder_total','个','folders']
-  ];
   // 汇总指标与明细类型分开：均值/比例保留独立入口，共用底层证据。
   const analysisCategories = [
     ['常规指标',[
@@ -39,6 +31,9 @@
     ]]
   ];
   const analysisMetrics = analysisCategories.flatMap(([,metrics])=>metrics);
+  const overviewOptions = [['growth','增长 / 新增'],['decrease','减少 / 退出'],['unchanged','无变化']];
+  const changeDirection = delta => delta>0?'growth':delta<0?'decrease':'unchanged';
+  const metricUnit = key => key.endsWith('_ratio')?'百分点':({code_size:'行',lines_per_file:'行 / 文件',lines_per_method:'行 / 函数',cyclomatic_complexity_per_method:'复杂度 / 函数',unsafe_functions_total:'处',redundant_code_total:'块'}[key]||'个');
   const defaultMetric = type => analysisMetrics.find(([,detailType])=>detailType===type)[0];
   const metricFraction = key => ({
     lines_per_file:['code_size','files_total'],lines_per_method:['method_lines','methods_total'],cyclomatic_complexity_per_method:['cyclomatic_complexity_total','methods_total'],
@@ -157,7 +152,7 @@
     });
   }
   function transition(type) {
-    const rows=rowsFor(type),comparable=rows.filter(r=>!r.ambiguous&&!r.flags.includes('incomparable'));
+    const rows=rowsFor(type),comparable=rows.filter(r=>!hasException(r));
     return {entered:comparable.filter(r=>r.flags.includes('entered')).length,exited:comparable.filter(r=>r.flags.includes('exited')).length,limited:comparable.length!==rows.length};
   }
   function rowStatus(row) {
@@ -180,7 +175,8 @@
     if(status==='all')return true;
     if(status==='changes')return row.changed;
     if(status==='exceptions')return hasException(row);
-    return row.flags.includes(status)&&(!thresholdKey(state.type)||!['entered','exited'].includes(status)||!row.flags.includes('incomparable'));
+    if(status==='unchanged')return row.delta===0&&!hasException(row);
+    return row.flags.includes(status)&&(!thresholdKey(state.type)||!['entered','exited'].includes(status)||!hasException(row));
   }
   function numberMeasure() {
     if(['cc','hugeCC'].includes(state.type))return {name:'圈复杂度',unit:''};
@@ -210,9 +206,9 @@
     return `${name}${condition.operator==='gte'?'至少':condition.operator==='lte'?'不超过':'介于'} ${show(condition.value)}${condition.operator==='between'?` 到 ${show(condition.upper)}`:''}${unit?` ${unit}`:''}`;
   }
   function statusOptions() {
-    if(thresholdKey(state.type))return [['changes','全部变化'],['entered','新增超限'],['exited','退出超限'],['all','全部对象']];
-    if(existenceType())return [['changes','全部变化'],['entered',['dupfiles','sourceDupfiles'].includes(state.type)?'进入重复清单':'记录新增'],['exited',['dupfiles','sourceDupfiles'].includes(state.type)?'退出重复清单':'记录消失'],['all','全部记录']];
-    return [['changes','全部变化'],['growth','只看增长'],['decrease','只看减少'],['all','全部对象']];
+    if(thresholdKey(state.type))return [['changes','全部变化'],['entered','新增超限'],['exited','退出超限'],['unchanged','无变化'],['all','全部对象']];
+    if(existenceType())return [['changes','全部变化'],['entered',['dupfiles','sourceDupfiles'].includes(state.type)?'进入重复清单':'记录新增'],['exited',['dupfiles','sourceDupfiles'].includes(state.type)?'退出重复清单':'记录消失'],['unchanged','无变化'],['all','全部记录']];
+    return [['changes','全部变化'],['growth','只看增长'],['decrease','只看减少'],['unchanged','无变化'],['all','全部对象']];
   }
   const sortIdentity = () => ['methodLines','cc','hugeMethod','hugeCC','unsafe'].includes(state.type)?'名称':'路径';
   function sortDescription() {
@@ -261,10 +257,25 @@
     if(key.startsWith('huge_folder'))return '成员不完整';
     return '';
   }
-  function metricCard([key,unit,type]) {
-    const b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],d=knownDelta(b,c),issue=summaryStatus(key),t=thresholdKey(type)?transition(type):null;
-    const highlight=t?t.entered>0&&!t.limited:d>0&&!issue;
-    return `<button class="metric-card ${highlight?'has-growth':''}" data-action="metric" data-value="${type}" data-metric="${key}" ${t?`data-status="${t.limited?'all':'entered'}"`:''} title="${esc(metricName(key))}：${fmt(b,decimalMetric(key))} → ${fmt(c,decimalMetric(key))}；变化 ${deltaText(d,decimalMetric(key))}${unit==='%'?' 个百分点':''}${issue?`；${issue}`:''}"><span class="metric-name">${esc(metricName(key))}<span class="card-arrow">↗</span></span><div class="metric-delta ${highlight?'up':issue?'muted':cls(d)}">${t?`<small>新增</small> ${t.limited?'—':t.entered}`:deltaText(d,decimalMetric(key))}${!t?`<small>${unit==='%'?'百分点':unit}</small>`:''}</div><div class="metric-bottom"><span>基线 <b>${fmt(b,decimalMetric(key))}${unit==='%'?'%':''}</b><span class="arrow-sep">→</span>当前 <b>${fmt(c,decimalMetric(key))}${unit==='%'?'%':''}</b></span>${t?`<span>退出 ${t.limited?'—':t.exited}</span>`:''}</div>${issue?`<div class="metric-warning">${esc(issue)}</div>`:''}</button>`;
+  function overviewMetric([key,type]) {
+    const b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],fraction=metricFraction(key),t=thresholdKey(type)?transition(type):null;
+    const issue=summaryStatus(key)||(!Number.isFinite(b)||!Number.isFinite(c)?'数据未知':'')||(fraction&&['baseline','current'].some(side=>!model.sides[side].summary[fraction[1]])?'分母为零 / 不适用':'')||(t?.limited?'部分对象不可比较':'');
+    // 按原始汇总值判方向；超限进出独立参与筛选，避免净数抵消变化。
+    const d=issue?null:c-b,directions=[];
+    if(!issue){
+      if(d>0||t?.entered>0)directions.push('growth');
+      if(d<0||t?.exited>0)directions.push('decrease');
+      if(d===0&&(!t||(!t.entered&&!t.exited)))directions.push('unchanged');
+    }
+    return {key,type,b,c,d,t,issue,directions};
+  }
+  function metricCard({key,type,b,c,d,t,issue,directions}) {
+    const ratio=key.endsWith('_ratio'),decimal=decimalMetric(key),suffix=ratio?'%':'',unit=metricUnit(key);
+    const status=t?.limited?'exceptions':directions.includes('unchanged')?'all':'changes';
+    const label=issue?'数据异常':directions.includes('unchanged')?'无变化':t?'净变化':d>0?'增长':'减少';
+    const exact=d==null?'—':d.toLocaleString('zh-CN',{maximumSignificantDigits:15});
+    const movement=t?`<div class="metric-movements">${[['growth','entered','新增超限'],['decrease','exited','退出超限']].filter(([direction])=>state.overviewChanges.includes(direction)).map(([direction,status,label])=>`<button class="movement ${direction}" data-action="metric" data-value="${type}" data-metric="${key}" data-status="${t.limited?'exceptions':status}" aria-label="${esc(metricName(key))}：${label} ${t.limited?'未知':t[status]}">${label} <b>${t.limited?'—':t[status]}</b><span aria-hidden="true">↗</span></button>`).join('')}</div>`:'';
+    return `<article class="metric-card ${issue?'has-issue':directions.includes('growth')&&state.overviewChanges.includes('growth')?'has-growth':directions.includes('decrease')&&state.overviewChanges.includes('decrease')?'has-decrease':''}" data-overview-metric="${key}"><button class="metric-summary" data-action="metric" data-value="${type}" data-metric="${key}" data-status="${status}" title="${esc(metricName(key))}：${fmt(b,decimal)}${suffix} → ${fmt(c,decimal)}${suffix}；${t?'净变化':'变化'} ${exact} ${unit}${issue?`；${issue}`:''}"><span class="metric-name">${esc(metricName(key))}<span class="card-arrow" aria-hidden="true">↗</span></span><div class="metric-delta ${issue?'muted':cls(d)}">${deltaText(d==null?null:knownDelta(b,c),decimal)}<small>${unit}</small></div><div class="metric-bottom"><span>基线 <b>${fmt(b,decimal)}${suffix}</b><span class="arrow-sep">→</span>当前 <b>${fmt(c,decimal)}${suffix}</b></span><span class="metric-direction ${issue?'muted':cls(d)}">${label}</span></div></button>${movement}${issue?`<div class="metric-warning">${esc(issue)}</div>`:''}</article>`;
   }
   function comparisonHeader() {
     return `<div class="comparison"><span class="repo">${esc(DATA.meta.identities.current.repository)}</span><span>基线 <b>${esc(DATA.meta.identities.baseline.version)}</b></span><span>→</span><span>当前 <b>${esc(DATA.meta.identities.current.version)}</b></span><span class="spacer"></span><span>${fmt(model.sides.current.summary.files_total)} 文件 / ${fmt(model.sides.current.summary.methods_total)} 函数</span></div>`;
@@ -275,11 +286,21 @@
     for(const file of model.fileRows.filter(r=>!dirs.some(dir=>inDirectory(r.path,dir))))rows.push({path:file.path,file:true,...aggregate(file.path,'code')});
     rows.sort((a,b)=>(b.delta??-Infinity)-(a.delta??-Infinity));
     const maximum=Math.max(1,...rows.map(r=>Math.abs(r.delta??0)));
-    return `<div class="panel-head"><h2>目录代码行变化</h2><span class="muted small">${metricName('code_size')}</span></div>${rows.map(r=>`<div class="chart-row"><button data-action="${r.file?'open-file':'directory'}" data-value="${esc(r.path)}" data-type="code">${esc(r.path)}</button><div class="bar-track">${r.delta?`<span class="bar ${r.delta<0?'negative':'positive'}" style="width:${Math.abs(r.delta)/maximum*49}%"></span>`:''}</div><span class="number ${cls(r.delta)}">${deltaText(r.delta)}</span></div>`).join('')}`;
+    const shown=rows.filter(row=>row.delta!=null&&state.overviewChanges.includes(changeDirection(row.delta)));
+    return `<div class="panel-head"><h2>目录代码行变化</h2><span class="muted small">${metricName('code_size')}</span></div>${shown.length?shown.map(r=>`<div class="chart-row"><button data-action="${r.file?'open-file':'directory'}" data-value="${esc(r.path)}" data-type="code">${esc(r.path)}</button><div class="bar-track">${r.delta?`<span class="bar ${r.delta<0?'negative':'positive'}" style="width:${Math.abs(r.delta)/maximum*49}%"></span>`:''}</div><span class="number ${cls(r.delta)}">${deltaText(r.delta)}</span></div>`).join(''):'<div class="empty">没有符合所选类型的目录</div>'}`;
+  }
+  function overviewFiles(direction,label) {
+    const rows=rowsFor('code').filter(row=>!hasException(row)&&changeDirection(row.delta)===direction).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)||a.path.localeCompare(b.path));
+    const heading={growth:'文件代码行增长',decrease:'文件代码行减少',unchanged:'文件代码行无变化'}[direction];
+    return `<section class="panel overview-files" data-direction="${direction}"><div class="panel-head"><h2>${heading}</h2><button class="text" data-action="metric" data-value="code" data-metric="code_size" data-status="${direction}">全部 ${rows.length} 个 ↗</button></div><div class="table-wrap"><table><thead><tr><th>文件</th><th class="num">基线</th><th class="num">当前</th><th class="num">${direction==='unchanged'?'变化':label.split(' / ')[0]}</th></tr></thead><tbody>${rows.length?rows.slice(0,8).map(r=>`<tr><td><button class="row-title mono" data-action="open-file" data-value="${esc(r.path)}" data-type="code">${esc(r.path)}</button></td><td class="num">${fmt(r.b)}</td><td class="num">${fmt(r.c)}</td><td class="num ${cls(r.delta)}">${deltaText(r.delta)}</td></tr>`).join(''):'<tr><td colspan="4" class="empty">没有符合所选类型的文件</td></tr>'}</tbody></table></div></section>`;
   }
   function overview() {
-    const growth=rowsFor('code').filter(r=>r.delta>0).sort((a,b)=>b.delta-a.delta);
-    return `${comparisonHeader()}<div class="section-head"><h1>概览</h1><span class="color-key"><i></i>增长 / 新增</span></div><div class="metrics-grid">${mainMetrics.slice(0,4).map(metricCard).join('')}</div><div class="section-head"><h2>新增超限</h2><span class="muted small">${mainMetrics.slice(8).filter(m=>{const t=transition(m[2]);return t.entered>0&&!t.limited;}).length} 类指标有新增</span></div><div class="metrics-grid threshold-grid">${mainMetrics.slice(8).map(metricCard).join('')}</div><div class="section-head"><h2>重复与问题</h2></div><div class="metrics-grid">${mainMetrics.slice(4,8).map(metricCard).join('')}</div><div class="overview-grid"><section class="panel">${chart()}</section><section class="panel"><div class="panel-head"><h2>文件代码行增长</h2><button class="text" data-action="growth-files">全部 ${growth.length} 个 ↗</button></div><table><thead><tr><th>文件</th><th class="num">基线</th><th class="num">当前</th><th class="num">增长</th></tr></thead><tbody>${growth.slice(0,8).map(r=>`<tr><td><button class="row-title mono" data-action="open-file" data-value="${esc(r.path)}" data-type="code">${esc(r.path)}</button></td><td class="num">${fmt(r.b)}</td><td class="num">${fmt(r.c)}</td><td class="num up">${deltaText(r.delta)}</td></tr>`).join('')}</tbody></table></section></div>`;
+    const groups=analysisCategories.map(([label,metrics])=>({label,metrics:metrics.map(overviewMetric)}));
+    const hasIssues=groups.some(group=>group.metrics.some(metric=>metric.issue));
+    return `${comparisonHeader()}<div class="section-head overview-heading"><h1>概览</h1><div class="overview-switches" role="group" aria-label="显示哪些概览内容">${overviewOptions.map(([value,label])=>`<button data-action="overview-toggle" data-value="${value}" class="${value} ${state.overviewChanges.includes(value)?'active':''}" aria-pressed="${state.overviewChanges.includes(value)}"><span class="toggle-mark" aria-hidden="true">${state.overviewChanges.includes(value)?'✓':'+'}</span>${label}</button>`).join('')}</div></div>${hasIssues?'<p class="overview-issue-note">数据异常的指标单独保留，不计入变化分类。</p>':''}${groups.map(({label,metrics})=>{
+      const shown=metrics.filter(metric=>metric.issue||metric.directions.some(direction=>state.overviewChanges.includes(direction)));
+      return `<section class="overview-category" aria-label="${label}"><div class="section-head"><h2>${label}</h2><span class="muted small">显示 ${shown.length} / ${metrics.length} 项</span></div><div class="metrics-grid overview-metrics">${shown.length?shown.map(metricCard).join(''):`<div class="panel empty">${state.overviewChanges.length?'没有符合所选类型的指标':'请选择要显示的概览内容'}<br><button class="text" data-action="overview-reset">恢复默认显示</button></div>`}</div></section>`;
+    }).join('')}${state.overviewChanges.length?`<section class="panel overview-chart">${chart()}</section><div class="overview-grid">${overviewOptions.filter(([value])=>state.overviewChanges.includes(value)).map(([value,label])=>overviewFiles(value,label)).join('')}</div>`:''}`;
   }
   function tree() {
     return `<div class="panel-head"><h3>目录</h3><span class="small muted" title="当前文件数，包含子目录中的文件；可分析两次扫描的路径并集">当前文件</span></div><div class="directory-tree">${model.dirs.map(dir=>`<button data-action="directory" data-value="${esc(dir)}" class="${state.directory===dir?'active':''}" style="padding-left:${8+(dir?dir.split('/').length-1:0)*10}px"><span class="folder-icon">${dir?'▱':'▦'}</span><span>${esc(dir?dir.split('/').pop():'全部')}</span><span class="tree-count">${Object.keys(model.sides.current.files).filter(path=>inDirectory(path,dir)).length}</span></button>`).join('')}</div>`;
@@ -473,7 +494,7 @@
   }
   function allMetrics() {
     const keys=Object.keys(model.sides.baseline.summary).filter(key=>typeof model.sides.baseline.summary[key]==='number');
-    const ordered=[...mainMetrics.map(m=>m[0]),...keys.filter(key=>!mainMetrics.some(m=>m[0]===key))];
+    const ordered=[...analysisMetrics.map(m=>m[0]),...keys.filter(key=>!analysisMetrics.some(m=>m[0]===key))];
     return `${comparisonHeader()}<div class="section-head"><h1>全部指标</h1><span class="muted">${keys.length} 项</span></div><section class="panel"><table><thead><tr><th>指标</th><th class="num">基线</th><th class="num">当前</th><th class="num">变化</th><th>新增 / 退出</th></tr></thead><tbody>${ordered.map(key=>{
       const b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],d=knownDelta(b,c),m=analysisMetrics.find(m=>m[0]===key),t=m&&thresholdKey(m[1])?transition(m[1]):null,issue=summaryStatus(key);
       return `<tr><td title="${esc(key)}">${m?`<button class="row-title" data-action="metric" data-value="${m[1]}" data-metric="${key}" ${t?`data-status="${t.limited?'all':'entered'}"`:''}>${esc(metricName(key))} ↗</button>`:esc(metricName(key))}${issue?badge(issue,'warning'):''}</td><td class="num">${fmt(b,decimalMetric(key))}${key.endsWith('_ratio')?'%':''}</td><td class="num">${fmt(c,decimalMetric(key))}${key.endsWith('_ratio')?'%':''}</td><td class="num ${issue?'muted':cls(d)}">${deltaText(d,decimalMetric(key))}${key.endsWith('_ratio')?' 个百分点':''}</td><td>${t?`<span class="${t.entered&&!t.limited?'up':''}">新增 ${t.limited?'—':t.entered}</span> / 退出 ${t.limited?'—':t.exited}`:''}</td></tr>`;
@@ -505,6 +526,10 @@
     if(action==='member-filter'){state.memberStatus=value;state.memberPage=1;safeRender();return;}
     if(action==='member-page'){state.memberPage+=Number(value);safeRender();return;}
     if(action==='back'){const previous=state.trail.pop();if(previous){const trail=state.trail;state={...previous,trail};}safeRender();return;}
+    if(action==='overview-toggle'||action==='overview-reset'){
+      state.overviewChanges=action==='overview-reset'?['growth','decrease']:state.overviewChanges.includes(value)?state.overviewChanges.filter(direction=>direction!==value):[...state.overviewChanges,value];
+      safeRender();document.querySelector(`[data-action="overview-toggle"][data-value="${action==='overview-reset'?'growth':value}"]`)?.focus({preventScroll:true});return;
+    }
     if(action==='view'){state.view=value;if(value==='workspace'&&!state.selected)selectInitial();syncURL();}
     if(action==='page'){state.page+=Number(value);state.selected=null;resetEvidence();}
     if(action==='select'){state.selected=value;state.trail=[];resetEvidence();}
@@ -518,7 +543,7 @@
     if(action==='cancel-number'){state.numberEditor=false;safeRender();return;}
     if(action==='sort'){const [field,direction]=state.sort.split(':');state.sort=`${value}:${field===value?(direction==='desc'?'asc':'desc'):value==='path'?'asc':'desc'}`;state.numberEditor=false;refreshQuery();return;}
     if(action==='analysis-type'&&value===state.metric)return;
-    if(action==='metric'||action==='analysis-type'){resetQuery();state.directory='';selectMetric(action==='analysis-type'?value:target.dataset.metric||defaultMetric(value));state.view='workspace';state.trail=[];if(target.dataset.status)state.status=target.dataset.status;selectInitial();syncURL();}
+    if(action==='metric'||action==='analysis-type'){resetQuery();state.directory='';selectMetric(action==='analysis-type'?value:target.dataset.metric||defaultMetric(value));state.view='workspace';state.trail=[];if(target.dataset.status)state.status=target.dataset.status;if(['decrease','exited'].includes(state.status))state.sort='delta:asc';selectInitial();syncURL();}
     if(action==='contributor'){
       remember();resetQuery();state.status='all';
       if(target.dataset.kind==='folder'){selectMetric('code_size');state.directory=value;}
@@ -526,14 +551,13 @@
       selectInitial();syncURL();
     }
     if(action==='directory'){if(state.view!=='workspace')selectMetric('code_size');state.directory=value;state.view='workspace';state.trail=[];resetQuery();selectInitial();syncURL();}
-    if(action==='growth-files'){resetQuery();state.directory='';selectMetric('code_size');state.status='growth';state.view='workspace';selectInitial();syncURL();}
     if(action==='open-file')openFile(value,target.dataset.type);
     if(action==='peer')openFile(value,state.type==='sourceDuplication'&&!isHeader(value)?'sourceDuplication':'duplication',true);
     if(action==='related'){remember();const path=target.dataset.path;resetQuery();selectMetric(defaultMetric(value));state.query=path;state.searchScope='all';state.status='all';selectInitial();}
     if(action==='member-open'){remember();resetQuery();selectMetric('code_size');state.status='all';if(target.dataset.kind==='目录'){state.directory=value;selectInitial();}else{state.directory='';state.query=value;state.selected=`file:${value}`;}}
     safeRender();
     if(action==='analysis-type')document.querySelector(`.analysis-metrics [data-value="${state.metric}"]`)?.focus({preventScroll:true});
-    if(['view','metric','directory','growth-files','open-file'].includes(action))window.scrollTo(0,0);
+    if(['view','metric','directory','open-file'].includes(action))window.scrollTo(0,0);
   });
   document.addEventListener('input',event=>{
     if(event.target.form?.id==='number-form'){event.target.form.elements.upper.setCustomValidity('');return;}
@@ -562,7 +586,7 @@
   try {
     DATA=JSON.parse($('#report-data').textContent);
     const params=new URLSearchParams(location.search),view=params.get('view')||(params.get('variant')==='B'?'workspace':'overview');
-    state={scenario:'normal',view:['overview','workspace','metrics'].includes(view)?view:'overview',type:'code',metric:'code_size',directory:'',query:'',searchScope:'directory',status:'changes',sort:'delta:desc',numberFilter:null,numberEditor:false,page:1,pageSize:10,selected:null,exactFile:null,locationOverride:null,groups:{baseline:null,current:null},memberStatus:'changes',memberQuery:'',memberPage:1,contributionPage:1,trail:[]};
+    state={scenario:'normal',overviewChanges:['growth','decrease'],view:['overview','workspace','metrics'].includes(view)?view:'overview',type:'code',metric:'code_size',directory:'',query:'',searchScope:'directory',status:'changes',sort:'delta:desc',numberFilter:null,numberEditor:false,page:1,pageSize:10,selected:null,exactFile:null,locationOverride:null,groups:{baseline:null,current:null},memberStatus:'changes',memberQuery:'',memberPage:1,contributionPage:1,trail:[]};
     model=buildModel();selectInitial();if(params.get('failInit')==='1')throw new Error('模拟初始化失败');render();
   }catch(error){fail(error);}
 })();

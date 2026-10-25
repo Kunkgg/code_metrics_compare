@@ -24,11 +24,18 @@ MAIN_METRICS = [
     ("file_duplication_ratio", "%（差值为百分点）"),
     ("unsafe_functions_total", "去重位置数"),
     ("redundant_code_total", "代码块数"),
-    ("huge_cyclomatic_complexity_total", "函数数"),
-    ("huge_method_total", "函数数"),
+    ("non_hfile_code_duplication_ratio", "%（差值为百分点）"),
+    ("non_hfile_duplication_ratio", "%（差值为百分点）"),
     ("huge_headerfile_total", "文件数"),
+    ("huge_headerfile_ratio", "%（差值为百分点）"),
     ("huge_non_headerfile_total", "文件数"),
+    ("huge_non_headerfile_ratio", "%（差值为百分点）"),
+    ("huge_method_total", "函数数"),
+    ("huge_method_ratio", "%（差值为百分点）"),
+    ("huge_cyclomatic_complexity_total", "函数数"),
+    ("huge_cyclomatic_complexity_ratio", "%（差值为百分点）"),
     ("huge_folder_total", "目录数"),
+    ("huge_folder_ratio", "%（差值为百分点）"),
 ]
 LIMITATIONS = [
     "模拟数据原型，未进行真实性能与容量验收。",
@@ -229,8 +236,9 @@ def display_number(value: int | float | Decimal, *, decimal: bool, delta: bool =
 
 
 def static_overview(data: dict[str, Any]) -> str:
-    """无脚本时保留主指标与超限进出，不让净数掩盖新增问题。"""
+    """无脚本时按两类保留全部分析指标与超限进出。"""
     rows = []
+    category = None
     types = {
         "huge_headerfile_total": "hugeHeader",
         "huge_non_headerfile_total": "hugeSource",
@@ -239,11 +247,17 @@ def static_overview(data: dict[str, Any]) -> str:
         "huge_folder_total": "folders",
     }
     for key, unit in MAIN_METRICS:
+        current_category = "超大指标" if key.startswith("huge_") else "常规指标"
+        if current_category != category:
+            rows.append(f'<tr><th colspan="6">{current_category}</th></tr>')
+            category = current_category
         before = data["baseline"]["summary_metrics"][key]
         after = data["current"]["summary_metrics"][key]
         delta = Decimal(str(after)) - Decimal(str(before))
         decimal = key.endswith(("_ratio", "_kloc", "_per_file", "_per_method"))
-        transition = data["meta"]["thresholdTransitions"].get(types.get(key))
+        transition = data["meta"]["thresholdTransitions"].get(
+            types.get(key.replace("_ratio", "_total"))
+        )
         movement = "—"
         if transition:
             movement = (
@@ -260,10 +274,12 @@ def static_overview(data: dict[str, Any]) -> str:
             unit,
         ]
         cells = "".join(f"<td>{html.escape(value)}</td>" for value in values)
-        # 新增项独立突出，净变化为零时仍可见。
         movement = html.escape(movement)
-        if transition and transition["entered"] and not transition["limited"]:
-            movement = f'<strong class="up">{movement}</strong>'
+        if transition and not transition["limited"]:
+            movement = (
+                f'<strong class="up">新增 {transition["entered"]}</strong> / '
+                f'<strong class="down">退出 {transition["exited"]}</strong>'
+            )
         rows.append(f"<tr>{cells}<td>{movement}</td></tr>")
     limits = "".join(f"<li>{html.escape(item)}</li>" for item in LIMITATIONS)
     return (
