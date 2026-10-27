@@ -19,7 +19,7 @@ from array import array
 from pathlib import Path
 from typing import Any
 
-from cmetrics_cmp_viz.prototype import MAIN_METRICS, display_number, load_metric_names, safe_json
+from prototypes.ui.prototype import MAIN_METRICS, display_number, load_metric_names, safe_json
 
 BLOCK_ORDER = [
     "meta",
@@ -340,7 +340,7 @@ def main() -> None:
     del sides, side_paths, rel_files
     gc.collect()
 
-    template_dir = Path(__file__).parent / "prototype_ui"
+    template_dir = Path(__file__).parent
     template = (template_dir / "large.html").read_text(encoding="utf-8")
     worker_src = (template_dir / "large_worker.js").read_text(encoding="utf-8")
     script_src = (template_dir / "large.js").read_text(encoding="utf-8")
@@ -352,7 +352,7 @@ def main() -> None:
         for kind in BLOCK_ORDER
     )
     replacements = {
-        "@@STYLE@@": (template_dir / "prototype.css").read_text(encoding="utf-8")
+        "@@STYLE@@": (template_dir.parent / "ui" / "prototype.css").read_text(encoding="utf-8")
         + "\n"
         + (template_dir / "large.css").read_text(encoding="utf-8"),
         "@@STATIC@@": static_overview(meta),

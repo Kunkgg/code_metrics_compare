@@ -265,4 +265,4 @@ A 类均为服务端或桌面形态，与本项目离线单文件交付不匹配
 | [17] | DuckDB LICENSE（GitHub duckdb/duckdb） | <https://github.com/duckdb/duckdb> | 2026-10-21 |
 | [18] | TScanCode README 与 LICENSE（GitHub Tencent/TScanCode） | <https://github.com/Tencent/TScanCode> | 2026-10-21 |
 | [19] | 华为云 Cmetrics 工具规格说明（经 [FSR](FSR.md) 第 2.3 节核验） | <https://support.huaweicloud.com/intl/zh-cn/api-codecheck/codecheck_03_0016.html> | 2026-10-21 |
-| [20] | [离线单 HTML 技术调查笔记](../.scratch/offline-report/research/offline-html-feasibility.md)（DuckDB 部署边界 S10/S11 及 file:// 机制引文） | 仓库内文档 | 2026-10-21 |
+| [20] | [离线单 HTML 技术调查笔记](research/offline-html-feasibility.md)（DuckDB 部署边界 S10/S11 及 file:// 机制引文） | 仓库内文档 | 2026-10-21 |

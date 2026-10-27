@@ -17,8 +17,8 @@ import time
 from pathlib import Path
 from typing import Any
 
-from cmetrics_cmp_viz.prototype_data import ROOT, THRESHOLDS
 from cmetrics_cmp_viz.schema import is_header_file, safe_div
+from prototypes.ui.prototype_data import ROOT, THRESHOLDS
 
 
 def _summarize(detail: dict[str, Any], directory_count: int) -> dict[str, Any]:

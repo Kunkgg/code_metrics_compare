@@ -55,7 +55,7 @@ indent-style = "space"
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "standard"
-include = ["src", "tests"]
+include = ["src", "tests", "prototypes", "scripts"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

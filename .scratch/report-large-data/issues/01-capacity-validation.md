@@ -63,7 +63,17 @@ Status: resolved
 - 内存为进程树 RSS 上界口径，未做干净会话差分与 JS heap 分离；P95 基于 20 次热样本，冷查询未单独成表（首轮样本在日志中，量级相同）。
 - 变化比例矩阵仅覆盖 1% 与 100%（低/满）；30% 中档与「接近 100% 大量增删」未单独成集。
 
-## 复现命令
+## 当前复现入口
+
+目录整理后，以下命令在仓库根目录执行；只更新入口，不代表重新测量或改变上述结论。源码位于 `prototypes/performance/`，留存的 scale-check manifest 位于 `.scratch/report-large-data/assets/scale-check-100k-manifest.json` 和 `.scratch/report-large-data/assets/scale-check-small-manifest.json`。
+
+```bash
+uv run python -m scripts.prototype_scale_data --num-files 100000 --output-dir output/scale-100k-full
+uv run python -m prototypes.performance.prototype_capacity --input-dir output/scale-100k-full
+open output/scale-100k-full/capacity-report.html
+```
+
+## 复现命令（归档分支当时记录）
 
 ```bash
 uv run python -m cmetrics_cmp_viz.prototype_scale_data --num-files 100000 --output-dir output/scale-100k-full

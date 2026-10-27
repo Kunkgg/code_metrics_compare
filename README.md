@@ -29,13 +29,28 @@ uv run pyright
 uv run pytest
 ```
 
+## 目录约定
+
+- `docs/`：需求、可行性、架构、指标名称和技术研究；`docs/agents/` 保留 Agent 工作约定。
+- `prototypes/ui/`、`prototypes/performance/`：已确认 UI 原型与独立容量验证原型。
+- `scripts/`：独立压力数据生成器及 `prototype_checks/` 原型检查脚本。
+- `src/cmetrics_cmp_viz/`：现有 CLI、模拟生成器、数据类型与校验器，后续正式代码在 `src/` 开发。
+- `tests/`、`schemas/`：自动化测试与模拟扫描结构契约。
+- `.scratch/`：历史交接、spec、issue 及需要版本管理的实验材料。
+- `output/`：生成数据、报告、截图和临时验证产物，继续由 Git 忽略。
+- 根目录 `AGENTS.md`、`GLOSSARY.md`：项目级 Agent 规范与领域术语。
+
+Golden Dataset 应包含基线输入、当前输入和人工确认的预期输出，并纳入 `tests/fixtures/golden/`；其他小规模样本纳入 `tests/fixtures/samples/`。当前没有这些数据，待有实际内容时再创建目录。早期 `init_requirements.md`、`sample.json` 已从工作树移除，历史版本可用 `git show d1ebe80:文件名` 查阅。
+
+下列命令均在仓库根目录执行。
+
 ## 离线报告 UI 原型（概览 + 三栏分析）
 
 > 一次性原型，归档分支 `prototype/prd-ui-comparison`。用于比较信息组织与交互，不是正式报告生成器或性能验收结果。
 
 ```bash
 # 自动生成可复现模拟数据、执行校验、构建单 HTML，并用默认浏览器打开
-uv run python -m cmetrics_cmp_viz.prototype --open
+uv run python -m prototypes.ui.prototype --open
 ```
 
 产物：[`output/prototype/cmetrics-prototype.html`](output/prototype/cmetrics-prototype.html)。可直接双击，只分发此 HTML 即可；阅读时不依赖 Python、服务、JSON 旁置文件或网络。
@@ -51,7 +66,7 @@ uv run python -m cmetrics_cmp_viz.prototype --open
 ### 数据与演示入口
 
 - 默认种子 `20261021`，两侧各 **181 个文件、545 个普通函数**；另生成两侧 JSON、内部有效行模型与变化台账。
-- 指标中文名统一读取根目录 [`metric_names.md`](metric_names.md)，静态概览与交互页面使用同一映射；不改变原有统计公式。
+- 指标中文名统一读取 [`docs/metric_names.md`](docs/metric_names.md)，静态概览与交互页面使用同一映射；不改变原有统计公式。
 - 两侧统一称为“基线 / 当前”。小数四舍五入到两位，均值、密度与比例保留尾零，计数保持整数；只调整显示，比较和筛选仍使用原始精度。
 - 12 项均值/比例分析合并为“指标变化”：突出整体变化，每个文件或目录只显示一个带正负号的净影响值，按影响大小排序并配正负条形。分子、分母及计算说明默认折叠；支持翻页、精确下钻和返回。解释范围随目录切换，不受表内筛选影响。
 - 概览按汇总指标的原始差值区分增长、减少和无变化；超大指标还独立考虑新增与退出，只有汇总未变且无进出才归为无变化。显示舍入为 `0.00` 的微小变化仍按原始方向分类。异常指标保留提示，不参与这三类归类。显示条件在页内切换时保留，刷新恢复默认。
@@ -66,13 +81,10 @@ uv run python -m cmetrics_cmp_viz.prototype --open
 
 ```bash
 # 自定义种子和输出目录
-uv run python -m cmetrics_cmp_viz.prototype --seed 42 --output-dir output/prototype-42
-
-# 仅隐藏原型调试状态；仍是原型，不可当作生产构建
-uv run python -m cmetrics_cmp_viz.prototype --production-preview --output-dir output/prototype-preview
+uv run python -m prototypes.ui.prototype --seed 42 --output-dir output/prototype-42
 ```
 
-源码位于 `src/cmetrics_cmp_viz/prototype.py`、`prototype_data.py`、`prototype_ui/`。“全部指标分组与阈值展示”见 [第十一轮记录](.scratch/report-ui-prototype/issues/11-all-metrics-groups.md)，“概览分类与显示切换”见 [第十轮记录](.scratch/report-ui-prototype/issues/10-overview-directions.md)，“指标变化”合并与单一影响值见 [第九轮记录](.scratch/report-ui-prototype/issues/09-single-impact.md)，“无变化”口径与文案精简见 [第八轮记录](.scratch/report-ui-prototype/issues/08-metric-only-changes.md)，筛选排序见 [第七轮记录](.scratch/report-ui-prototype/issues/07-task-filters.md)，定位文本见 [第六轮记录](.scratch/report-ui-prototype/issues/06-simple-location.md)，均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
+源码位于 `prototypes/ui/`，包含 `prototype.py`、`prototype_data.py` 与 HTML/CSS/JS。“全部指标分组与阈值展示”见 [第十一轮记录](.scratch/report-ui-prototype/issues/11-all-metrics-groups.md)，“概览分类与显示切换”见 [第十轮记录](.scratch/report-ui-prototype/issues/10-overview-directions.md)，“指标变化”合并与单一影响值见 [第九轮记录](.scratch/report-ui-prototype/issues/09-single-impact.md)，“无变化”口径与文案精简见 [第八轮记录](.scratch/report-ui-prototype/issues/08-metric-only-changes.md)，筛选排序见 [第七轮记录](.scratch/report-ui-prototype/issues/07-task-filters.md)，定位文本见 [第六轮记录](.scratch/report-ui-prototype/issues/06-simple-location.md)，均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
 
 ## 大数据容量验证原型（每侧 10 万文件 / 100 万函数）
 
@@ -80,13 +92,25 @@ uv run python -m cmetrics_cmp_viz.prototype --production-preview --output-dir ou
 
 ```bash
 # 1. 生成可复现压力数据（两侧扫描 JSON + manifest 台账）
-uv run python -m cmetrics_cmp_viz.prototype_scale_data --num-files 100000 --output-dir output/scale-100k-full
+uv run python -m scripts.prototype_scale_data --num-files 100000 --output-dir output/scale-100k-full
 
 # 2. 构建紧凑分块单 HTML（gzip+base64 内嵌，浏览器内 Blob Worker 查询）
-uv run python -m cmetrics_cmp_viz.prototype_capacity --input-dir output/scale-100k-full
+uv run python -m prototypes.performance.prototype_capacity --input-dir output/scale-100k-full
 ```
 
 产物：`output/scale-100k-full/capacity-report.html`（约 14.5 MB）。页内可用 `window.scalePrototype.bench('query', {...}, 20)` 复测 P95，`run('verify')` 核对汇总与台账一致性。仅在 Chrome 156 headless + 断网 file:// 实测，未覆盖 Edge/headed/跨 OS。
+
+## 原型检查与输出保留
+
+`output/prototype/` 保留当前 UI 报告、合成数据及历轮截图；`output/scale-100k-{full,low,wide}/` 保留三种容量场景，`output/scale-1k/`、`output/scale-10k/` 保留小规模校验和报告。过时预览、临时 `scale-check-*` 数据及重复生成日志已清理，两份独立校验 manifest 保存在 [容量验证材料](.scratch/report-large-data/assets/) 中；它们是实验记录，不是人工预期输出。
+
+原先位于忽略目录中的四个检查脚本已纳入 `scripts/prototype_checks/`：
+
+- `check-overview.js`、`check-overview-anomalies.js`：分别在正常概览页执行的页面内断言。
+- `check-all-metrics.js`：在正常全部指标页（`?view=metrics`）执行的页面内断言。
+- `check-overview-edges.cjs`：读取默认 UI 产物及源码，在 Node.js 中检查边界行为：`node scripts/prototype_checks/check-overview-edges.cjs`。
+
+前三个脚本通过浏览器控制台或自动化工具执行完整文件内容，需要默认原型状态；它们不属于 pytest 测试集。迁移前后构建和浏览器验证产物放在 `output/reorg-verification/`。
 
 ## 模拟数据生成与校验 (P0)
 

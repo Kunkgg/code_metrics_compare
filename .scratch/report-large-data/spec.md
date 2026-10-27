@@ -4,6 +4,10 @@ Status: resolved（验证记录：[issues/01-capacity-validation.md](issues/01-c
 
 分支：`prototype/prd-ui-comparison-large-data`。起点：`1eb1d42`（已认可的小规模 UI 原型）。
 
+## 当前复现入口
+
+目录整理后，在仓库根目录运行 `uv run python -m scripts.prototype_scale_data --num-files 100000 --output-dir output/scale-100k-full` 生成数据，再运行 `uv run python -m prototypes.performance.prototype_capacity --input-dir output/scale-100k-full` 构建报告，输出为 `output/scale-100k-full/capacity-report.html`。容量源码位于 `prototypes/performance/`；留存的 scale-check manifest 位于 `assets/scale-check-100k-manifest.json` 和 `assets/scale-check-small-manifest.json`。下文及验证记录中的旧命令、路径和分支说明保留归档分支当时的语境。
+
 ## 问题与范围
 
 在基线、当前每侧 10 万文件、100 万函数下，离线单 HTML 能否在预算内完成“发现增长 → 目录下钻 → 文件／函数定位 → 关联证据”？目录很宽、很深时，有限显示与路径检索是否能保留完整可达性？

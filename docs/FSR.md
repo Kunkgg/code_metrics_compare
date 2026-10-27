@@ -2,10 +2,12 @@
 
 - 编制日期：2026-10-21
 - 状态：核心需求及主要字段语义已确认；少量格式与统计边界待确认；JSON Schema、模拟生成脚本、原型及性能验证尚未完成
-- 需求依据：[init_requirements.md](../init_requirements.md)、Q1–Q25 核心需求澄清、后续样例与 Q26–Q35 字段确认，以及用户补充的 [Cmetrics 工具规格说明](https://support.huaweicloud.com/intl/zh-cn/api-codecheck/codecheck_03_0016.html)
-- 本次补充：固定末尾函数最大值、重复片段开始位置与长度、危险函数去重汇总、多扫描路径格式、忽略抑制告警总数，以及先准备数据再验证原型的推进顺序；[sample.json](../sample.json) 保留为结构样例，不代表真实扫描或统计一致性验证
+- 需求依据：初始需求（历史提交 `d1ebe80:init_requirements.md`）、Q1–Q25 核心需求澄清、后续样例与 Q26–Q35 字段确认，以及用户补充的 [Cmetrics 工具规格说明](https://support.huaweicloud.com/intl/zh-cn/api-codecheck/codecheck_03_0016.html)
+- 本次补充：固定末尾函数最大值、重复片段开始位置与长度、危险函数去重汇总、多扫描路径格式、忽略抑制告警总数，以及先准备数据再验证原型的推进顺序；当时的 `sample.json`（历史提交 `d1ebe80:sample.json`）作为结构样例，不代表真实扫描或统计一致性验证
 - 交付目标：由 Python 离线预处理生成一个自包含的 `.html` 报告文件
 - 本报告范围：业务可行性、数据可信性、技术与性能可行性、风险、原型验证及投入估算；不包含原型实现
+
+本文保留编制时的状态与证据语境。历史输入 `init_requirements.md`、`sample.json` 已移除，可在仓库根目录用 `git show d1ebe80:init_requirements.md`、`git show d1ebe80:sample.json` 查阅；现行需求见 [PRD](PRD.md)，模拟口径见[模拟数据生成指导](mock-data-generation.md)。
 
 ## 1. 结论摘要
 
@@ -117,7 +119,7 @@ Python 预处理、自包含 HTML、Blob Worker、内嵌压缩数据等机制有
 
 ### 2.4 用户补充样例的结构与证据边界
 
-[sample.json](../sample.json) 已由用户手工补充，当前包含 35 个数值度量、3 项元信息及 7 类明细。它仍是**用于描述格式的构造样例，不是正式 JSON Schema，也不是完整一致的扫描报告**。
+当时的 `sample.json`（历史提交 `d1ebe80:sample.json`）经用户手工补充后包含 35 个数值度量、3 项元信息及 7 类明细。它仍是**用于描述格式的构造样例，不是正式 JSON Schema，也不是完整一致的扫描报告**。
 
 | 字段路径 | 样例中观察到的结构 | 解析影响与未决语义 |
 |---|---|---|
@@ -537,11 +539,11 @@ JSON Schema 用于表达扫描输出结构，不是 `cmp_*` 对比结果结构�
 
 内部依据：
 
-- [初始需求](../init_requirements.md)。
+- 初始需求：历史提交 `d1ebe80:init_requirements.md`。
 - Q1–Q25 核心需求澄清、用户提供的 Cmetrics 工具规格、Q26–Q35 及补充回答；本次已同步固定末尾最大值、重复片段开始行与长度、危险函数去重汇总、逗号分隔扫描路径、忽略抑制告警总数，以及数据生成脚本 → 原型验证 → 方案深化的顺序。未明确的边界仍保留为待确认。
-- [sample.json](../sample.json)：由初始汇总样例经用户删改并补充元信息及 7 类明细的结构样例；不是正式 JSON Schema、完整一致性夹具或真实扫描结果。
-- [离线单 HTML 技术调查笔记](../.scratch/offline-report/research/offline-html-feasibility.md)：包含取证方式、原文引用、官方仓库链接及研究限制。
-- [Cmetrics 规格核查笔记](../.scratch/offline-report/research/cmetrics-specification.md)：官方字段、阈值、公式歧义及序列化契约的证据边界。
+- 结构样例：历史提交 `d1ebe80:sample.json`；由初始汇总样例经用户删改并补充元信息及 7 类明细的结构样例；不是正式 JSON Schema、完整一致性夹具或真实扫描结果。
+- [离线单 HTML 技术调查笔记](research/offline-html-feasibility.md)：包含取证方式、原文引用、官方仓库链接及研究限制。
+- [Cmetrics 规格核查笔记](research/cmetrics-specification.md)：官方字段、阈值、公式歧义及序列化契约的证据边界。
 - [竞品与同类方案分析](competitive-analysis.md)：与本项目技术路线相关的同类实现调研（单文件 HTML 报告、浏览器端大规模数据、度量平台）；借鉴用途，不改变本报告已确认的约束与验证顺序。
 
 外部一手资料（指标定义与技术机制依据，非本项目测试结果）：

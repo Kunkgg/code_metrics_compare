@@ -3,7 +3,7 @@
   "$id": "urn:cmetrics-cmp-viz:schema:mock-scan:1",
   "title": "Cmetrics 模拟扫描结果 profile v1",
   "description": "当前项目的严格模拟扫描结构契约，不是 Cmetrics 所有版本的官方输出契约。生成与补充语义校验见 docs/mock-data-generation.md。",
-  "$comment": "Schema 通过不代表统计一致性通过。函数最大值对象的末尾位置、实际最大值、引用、扫描路径、阈值、公式及有效重复行并集须另行校验。sample.json 仅作为结构样例，保持原样。",
+  "$comment": "Schema 通过不代表统计一致性通过。函数最大值对象的末尾位置、实际最大值、引用、扫描路径、阈值、公式及有效重复行并集须另行校验。",
   "type": "object",
   "required": ["summary_metrics", "detail_metrics"],
   "additionalProperties": false,

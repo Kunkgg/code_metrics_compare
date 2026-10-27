@@ -1,5 +1,7 @@
 # 07 按阅读任务重做筛选与排序
 
+现行重建入口：在仓库根目录运行 `uv run python -m prototypes.ui.prototype --open`；源码位于 `prototypes/ui/`，指标名称位于 `docs/metric_names.md`，定向检查脚本位于 `scripts/prototype_checks/`。下文旧命令、源码路径及分支说明保留归档分支当时的记录。
+
 Type: prototype
 Status: resolved
 

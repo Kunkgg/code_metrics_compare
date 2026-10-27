@@ -3,7 +3,7 @@
 - 状态：P0 实施完成，包含口径规范、CLI 生成脚本与 L0–L3 自动化校验体系
 - 结构契约：[schemas/cmetrics-report.schema.json](../schemas/cmetrics-report.schema.json)（JSON Schema Draft 2020-12，模拟 profile v1）
 - 依据：[docs/FSR.md](FSR.md) §2–4、§6.3、§8.1–8.3；交接记录 `.scratch/cmetrics-schema-handoff-ruawuff6.md`；本轮用户确认 Q1–Q8
-- 优先级：本文及 Schema 采用的用户确认口径优先于 FSR 中较早的“待确认”表述；`sample.json` 保持原样，仅作结构材料
+- 优先级：本文及 Schema 采用的用户确认口径优先于 FSR 中较早的“待确认”表述；历史结构样例见 `d1ebe80:sample.json`（仓库根目录执行 `git show d1ebe80:sample.json`）
 - 交付成果：已完成基于 `msgspec` 与 `jsonschema` 的独立生成脚本与校验器，提供 CLI 命令行工具 `cmetrics_cmp_viz.cli`，具体使用见第 11 节。
 
 ## 1. 范围与定位
@@ -11,7 +11,7 @@
 - 目标：指导后续生成器产出**可从明细复算汇总**的 baseline/current 模拟扫描 JSON，作为正确性夹具与容量压力数据来源。
 - Schema 定位：当前模拟 profile v1 的**结构**契约。它不是 Cmetrics 所有版本的官方输出契约，不是 `cmp_*` 对比结果契约，也不能证明统计一致性。
 - 两侧可选代码元信息（仓库、分支、节点、版本号）由对比工具使用者手工提供，不属于扫描 JSON，不在本契约内（FSR §3.4）。
-- `sample.json` 是结构样例：即使通过 L1 结构校验，也只证明结构合规；其汇总与明细存在有意的不一致，不得用作 L2 正例。
+- 历史 `sample.json`（`d1ebe80:sample.json`，已从现行目录移除）是结构样例：即使通过 L1 结构校验，也只证明结构合规；其汇总与明细存在有意的不一致，不得用作 L2 正例。
 
 ## 2. 校验分层
 

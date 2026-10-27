@@ -11,9 +11,9 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
-from cmetrics_cmp_viz.prototype_data import ROOT, STORY_PATHS, generate_side, make_ledger
 from cmetrics_cmp_viz.schema import is_header_file
 from cmetrics_cmp_viz.validator import validate_l0, validate_l1, validate_l2, validate_l3
+from prototypes.ui.prototype_data import ROOT, STORY_PATHS, generate_side, make_ledger
 
 MAIN_METRICS = [
     ("code_size", "非空非注释代码行"),
@@ -60,8 +60,8 @@ def safe_json(value: Any) -> str:
 
 
 def load_metric_names() -> dict[str, str]:
-    """以用户维护的根文件为唯一名称来源，容忍 key 两侧的多余引号。"""
-    source = Path(__file__).resolve().parents[2] / "metric_names.md"
+    """以 docs 中用户维护的文件为唯一名称来源，容忍 key 两侧的多余引号。"""
+    source = Path(__file__).resolve().parents[2] / "docs" / "metric_names.md"
     names = {}
     for line in source.read_text(encoding="utf-8").splitlines():
         if ":" in line:
@@ -309,7 +309,7 @@ def main() -> None:
         output.mkdir(parents=True, exist_ok=True)
         for name, content in artifacts.items():
             (output / name).write_text(content, encoding="utf-8")
-        template_dir = Path(__file__).parent / "prototype_ui"
+        template_dir = Path(__file__).parent
         template = (template_dir / "report.html").read_text(encoding="utf-8")
         # 先替换模板资产，再注入不可信数据，避免数据中的占位符被二次解释。
         replacements = {
