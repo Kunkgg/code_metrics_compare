@@ -18,12 +18,35 @@ Status: claimed
 - 核验全部 33 项汇总及最大值，不能用旧26项自检替代。
 - 更新独立原始输入预期、异常夹具与浏览器回归，在100k重测函数查询和资源。
 
+## 已确认的 14 条失败断言
+
+这里的 14 指参考 UI 对照 golden 的失败断言数量，集中在下列三类实现问题；同一问题会影响多个列表或过滤结果。当前检查执行 `prototypes/ui/prototype.js` 的业务函数，不代表完整 Worker 或浏览器验收。
+
+| 实现问题 | golden 要求 | 当前行为与具体影响 |
+|---|---|---|
+| 函数排序 | `path:asc` 先按文件路径，同路径再按函数名称排列。 | 当前先按函数名称排列。例如 `src/b.c:moved` 插在多条 `src/a.c` 函数之间，导致完整列表和无变化列表的顺序不符。 |
+| 同名函数集合比较 | 同文件同名称分别汇总两侧值，比较集合总量，同时保留歧义和提示。 | `repeat` 基线两条为 10+20，当前一条为 25，应得到 30→25、差值 -5；当前两侧值和差值仍为 null，也没有完整比较依据与中文混淆提示。该行未进入减少过滤，结果数量预期 4、实际 3。 |
+| 两侧函数记录数 | 每行返回 `beforeCount`、`afterCount`：普通存续为 1→1，单侧新增为 0→1，同名集合示例为 2→1。 | 当前参考 UI 未完整返回这些字段。即使 `new_only` 的代码行 0→15、差值 15 正确，其记录数仍缺失，固定行投影因此失败。 |
+
+失败断言分布如下：
+
+| golden 数据组 | 数量 | 涉及断言 |
+|---|---:|---|
+| `huge-complexity` | 2 | 完整列表、无变化过滤结果的顺序。 |
+| `huge-method` | 2 | 完整列表、无变化过滤结果的顺序。 |
+| `method-complexity` | 2 | 完整列表、无变化过滤结果的顺序。 |
+| `method-lines` | 8 | 完整列表；新增、退出、增长、减少、无变化过滤；减少结果数量；同名集合及提示。 |
+
+逐条登记见 [business_known_gaps.json](../../../tests/business_known_gaps.json)；业务预期及手算说明见 [method-lines](../../../tests/fixtures/golden/method-lines/README.md) 和 [Golden Dataset 索引](../../../tests/fixtures/golden/README.md)。测试入口是 [test_golden.py](../../../tests/test_golden.py)，通过 [check-business-fixture.cjs](../../../scripts/prototype_checks/check-business-fixture.cjs) 调用参考 UI。
+
+验收时应修正实现，使这些已批准预期正常通过，再移除对应的 `strict xfail` 登记及失败摘要。不能通过改写 golden 或放宽比较来消除失败。当前仅补充差距说明，统一原型主任务仍暂停。
+
 ## 边界
 
-统一原型继续暂停，本轮不修实现、不启动大规模测试；后续计划另行调整，本轮不重写已有阶段计划。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [Golden Dataset](../../../tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见保留在 [issues.md](../../../tests/fixtures/samples/golden-candidates/issues.md)。Schema／生成约束已迁入 `tests/fixtures/validation/`。
+统一原型继续暂停，本轮不修实现、不启动大规模测试；后续计划另行调整，本轮不重写已有阶段计划。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [Golden Dataset](../../../tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见保留在 [review-issues.md](../../../tests/fixtures/golden/review-issues.md)。Schema／生成约束已迁入 `tests/fixtures/validation/`。
 
 12 项净影响在阶段 3，所有关联证据集合分页在阶段 4。仍保留已有全部入口；不以未接入、异常或仅当前页冒充确定的全量结果。
 
 ## 实验记录
 
-部分代码已实现，尚无阶段完成证据。当前参考 UI 的 414 项业务断言中，400 项通过，14 项为函数排序、同名聚合计数的真实实现差距；后续按具体断言设置 `strict xfail` 并锁定失败形态，不将其记为数据审核未通过。统一原型继续暂停，本轮不修实现、不启动大规模测试；后续计划另行调整，本轮不重写已有阶段计划。见 [spec](../spec.md)。
+部分代码已实现，尚无阶段完成证据。当前参考 UI 的 414 项业务断言中，400 项通过，14 项为函数排序、同名聚合计数的真实实现差距；已按具体断言设置 `strict xfail` 并锁定失败形态，不将其记为数据审核未通过。统一原型继续暂停，本轮不修实现、不启动大规模测试；后续计划另行调整，本轮不重写已有阶段计划。见 [spec](../spec.md)。

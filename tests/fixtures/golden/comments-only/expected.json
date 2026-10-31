@@ -3,7 +3,7 @@
   "description": "只有注释／空白；文件存在、有效代码行为零、无函数。",
   "review": {
     "reviewer": "用户",
-    "basis": "../../samples/golden-candidates/issues.md#comments-only",
+    "basis": "../review-issues.md#comments-only",
     "decision": "OK",
     "scope": "两侧输入与原查询预期；本轮仅移除校验器预期并补录审批记录"
   },

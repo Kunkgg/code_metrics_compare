@@ -3,7 +3,7 @@
   "description": "空扫描；33 项数值为零，报告层的零分母显示应单独验证。",
   "review": {
     "reviewer": "用户",
-    "basis": "../../samples/golden-candidates/issues.md#empty",
+    "basis": "../review-issues.md#empty",
     "decision": "OK",
     "scope": "两侧输入与原查询预期；本轮仅移除校验器预期并补录审批记录"
   },
