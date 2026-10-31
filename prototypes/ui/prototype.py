@@ -281,11 +281,17 @@ def static_overview(data: dict[str, Any]) -> str:
                 f'<strong class="down">退出 {transition["exited"]}</strong>'
             )
         rows.append(f"<tr>{cells}<td>{movement}</td></tr>")
-    limits = "".join(f"<li>{html.escape(item)}</li>" for item in LIMITATIONS)
+    limits = "".join(
+        f"<li>{html.escape(item)}</li>" for item in data["meta"].get("limitations", LIMITATIONS)
+    )
+    identities = data["meta"]["identities"]
+    versions = html.escape(
+        f"基线 {identities['baseline']['version']} → 当前 {identities['current']['version']}"
+    )
     return (
         '<section class="static-fallback panel"><h2>静态概览 / 模拟数据</h2>'
         "<p>若交互未启动，仅可阅读此处，搜索、筛选与下钻不可用。</p>"
-        "<p>基线 v1-demo → 当前 v2-demo</p>"
+        f"<p>{versions}</p>"
         "<table><thead><tr><th>指标</th><th>基线</th><th>当前</th><th>变化</th>"
         "<th>单位</th><th>超限项进出</th></tr></thead><tbody>"
         + "".join(rows)
@@ -296,6 +302,8 @@ def static_overview(data: dict[str, Any]) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="生成受控模拟数据与离线 UI 原型（非生产工具）")
     parser.add_argument("--seed", type=int, default=20261021)
+    parser.add_argument("--input-dir", type=Path, help="从已知模拟输入及 manifest 构建紧凑报告")
+    parser.add_argument("--compact", action="store_true", help="让标准故事夹具也走紧凑数据入口")
     parser.add_argument("--output-dir", type=Path, default=Path("output/prototype"))
     parser.add_argument(
         "--production-preview", action="store_true", help="仅隐藏原型调试状态，不代表正式生产"
@@ -303,12 +311,43 @@ def main() -> None:
     parser.add_argument("--open", action="store_true", help="使用默认浏览器打开 file:// 报告")
     args = parser.parse_args()
     try:
+        if args.input_dir:
+            from prototypes.ui.compact_report import build_compact_report
+
+            destination = build_compact_report(
+                args.input_dir, args.output_dir, production_preview=args.production_preview
+            )
+            if args.open:
+                webbrowser.open(destination.resolve().as_uri())
+            return
         data, artifacts = prepare_data(args.seed)
         print("正常合成夹具：baseline/current 的 L0、L1、L2、L3 均通过。")
         output = args.output_dir
         output.mkdir(parents=True, exist_ok=True)
         for name, content in artifacts.items():
             (output / name).write_text(content, encoding="utf-8")
+        if args.compact:
+            from prototypes.ui.compact_report import build_compact_report
+            from scripts.prototype_scale_data import scale_manifest
+
+            manifest = scale_manifest(
+                data["baseline"],
+                data["current"],
+                seed=args.seed,
+                shape="story",
+                num_files=data["current"]["summary_metrics"]["files_total"],
+                methods_per_file=None,
+                change_rate=None,
+            )
+            manifest["validation"] = "故事夹具 baseline/current 的 L0–L3 已通过"
+            manifest.pop("coverageRule")
+            (output / "manifest.json").write_text(json_text(manifest), encoding="utf-8")
+            destination = build_compact_report(
+                output, output, production_preview=args.production_preview, ui_meta=data["meta"]
+            )
+            if args.open:
+                webbrowser.open(destination.resolve().as_uri())
+            return
         template_dir = Path(__file__).parent
         template = (template_dir / "report.html").read_text(encoding="utf-8")
         # 先替换模板资产，再注入不可信数据，避免数据中的占位符被二次解释。
@@ -316,6 +355,7 @@ def main() -> None:
             "@@STYLE@@": (template_dir / "prototype.css").read_text(encoding="utf-8"),
             "@@SCRIPT@@": (template_dir / "prototype.js").read_text(encoding="utf-8"),
             "@@PROTOTYPE_MODE@@": "false" if args.production_preview else "true",
+            "@@READER_ASSETS@@": "",
             "@@STATIC@@": static_overview(data),
             "@@DATA@@": safe_json(data),
         }

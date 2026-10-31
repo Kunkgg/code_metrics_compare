@@ -1,6 +1,6 @@
 const fs=require('node:fs');
 const vm=require('node:vm');
-const html=fs.readFileSync('output/prototype/cmetrics-prototype.html','utf8');
+const html=fs.readFileSync(process.argv[2] || 'output/prototype/cmetrics-prototype.html','utf8');
 const data=JSON.parse(html.match(/<script type="application\/json" id="report-data">([\s\S]*?)<\/script>/)[1]);
 const source=fs.readFileSync('prototypes/ui/prototype.js','utf8').replace(/\}\)\(\);\s*$/, 'globalThis.check = {overviewMetric,transition,metricCard,rowsFor,matchesStatus,setType: type=>state.type=type};})();');
 const results=[];

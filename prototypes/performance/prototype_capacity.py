@@ -11,14 +11,15 @@ import gzip
 import html
 import itertools
 import json
-import resource
 import struct
-import sys
 import time
 from array import array
+from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from cmetrics_cmp_viz.schema import is_header_file
+from prototypes.resource_usage import peak_rss_mib
 from prototypes.ui.prototype import MAIN_METRICS, display_number, load_metric_names, safe_json
 
 BLOCK_ORDER = [
@@ -89,6 +90,7 @@ class SideData:
     ) -> None:
         detail = report["detail_metrics"]
         self.summary = report["summary_metrics"]
+        self.maxima = detail["method_metrics"][-1]
         self.files = detail["file_sizes"]
         self.methods: list[tuple[int, int, int, int, int, int]] = []
         for m in detail["method_metrics"][:-1]:
@@ -134,6 +136,60 @@ class SideData:
             self.redundant.extend((f, line) for line in lines)
         self.redundant.sort()
         self.huge_folders = {rel_path(p, root): n for p, n in detail["huge_folders"].items()}
+
+
+def compact_threshold_transitions(
+    baseline: SideData, current: SideData
+) -> tuple[dict[str, Any], int]:
+    """沿用 UI 的超限集合口径，跨侧重名函数以共享文件／名称 ID 排除。"""
+    ambiguous: set[tuple[int, int]] = set()
+    for data in (baseline, current):
+        counts = Counter((m[0], m[1]) for m in data.methods)
+        ambiguous.update(key for key, count in counts.items() if count > 1)
+    del counts
+    limited = {"hugeMethod": False, "hugeCC": False}
+
+    def objects(data: SideData) -> dict[str, set[Any]]:
+        thresholds = data.summary["huge_threshold"]
+        result: dict[str, set[Any]] = {
+            "hugeHeader": {
+                p
+                for p, v in data.files.items()
+                if is_header_file(p) and v[0] > thresholds["huge_headerfile"]
+            },
+            "hugeSource": {
+                p
+                for p, v in data.files.items()
+                if not is_header_file(p) and v[0] > thresholds["huge_non_headerfile"]
+            },
+            "hugeMethod": set(),
+            "hugeCC": set(),
+            "folders": {
+                p for p, count in data.huge_folders.items() if count > thresholds["huge_folder"]
+            },
+        }
+        for method in data.methods:
+            key = (method[0], method[1])
+            for kind, index, threshold in (
+                ("hugeMethod", 4, "huge_method"),
+                ("hugeCC", 5, "huge_cyclomatic_complexity"),
+            ):
+                if method[index] > thresholds[threshold]:
+                    if key in ambiguous:
+                        limited[kind] = True
+                    else:
+                        result[kind].add(key)
+        return result
+
+    before, after = objects(baseline), objects(current)
+    return {
+        kind: {
+            "entered": len(after[kind] - before[kind]),
+            "exited": len(before[kind] - after[kind]),
+            "limited": limited.get(kind, False),
+        }
+        for kind in before
+    }, len(ambiguous)
 
 
 def build_dirs(
@@ -211,21 +267,16 @@ def static_overview(meta: dict[str, Any]) -> str:
     )
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--input-dir", type=Path, default=Path("output/scale-100k-full"))
-    parser.add_argument("--output", type=Path, default=None)
-    parser.add_argument("--open", action="store_true")
-    args = parser.parse_args()
-    started = time.perf_counter()
-    manifest = json.loads((args.input_dir / "manifest.json").read_text(encoding="utf-8"))
+def build_payload(input_dir: Path) -> tuple[dict[str, Any], dict[str, str]]:
+    """逐侧读取扫描报告，生成可供不同原型页面复用的元数据与紧凑块。"""
+    manifest = json.loads((input_dir / "manifest.json").read_text(encoding="utf-8"))
     root = manifest["root"]
 
     # 先读两侧文件路径并集与名字并集，再逐侧抽取，避免两份完整报告同时驻留。
     side_paths: dict[str, dict[str, list[int]]] = {}
     all_names: set[str] = set()
     for side in ("baseline", "current"):
-        report = json.loads((args.input_dir / f"{side}.json").read_text(encoding="utf-8"))
+        report = json.loads((input_dir / f"{side}.json").read_text(encoding="utf-8"))
         side_paths[side] = report["detail_metrics"]["file_sizes"]
         for m in report["detail_metrics"]["method_metrics"][:-1]:
             all_names.add(m["method_name"])
@@ -242,7 +293,7 @@ def main() -> None:
 
     sides: dict[str, SideData] = {}
     for side in ("baseline", "current"):
-        report = json.loads((args.input_dir / f"{side}.json").read_text(encoding="utf-8"))
+        report = json.loads((input_dir / f"{side}.json").read_text(encoding="utf-8"))
         sides[side] = SideData(report, root, file_id, name_id)
         del report
         gc.collect()
@@ -256,9 +307,14 @@ def main() -> None:
         folder_count = sum(1 for d in dirs if d["p"] and d[f"{flag}F"] > 0)
         print(f"{label}函数 {len(side.methods):,}，目录 {folder_count:,}")
 
+    transitions, ambiguous_count = compact_threshold_transitions(baseline, current)
     meta = {
         "scale": {**manifest["config"], "unionFiles": manifest["unionFiles"]},
         "root": root,
+        "maxima": {"baseline": baseline.maxima, "current": current.maxima},
+        "thresholdTransitions": transitions,
+        "ambiguousMethodCount": ambiguous_count,
+        "directoryCount": len(dirs),
         "metricNames": load_metric_names(),
         "summaries": {"baseline": baseline.summary, "current": current.summary},
         "manifest": manifest,
@@ -279,7 +335,6 @@ def main() -> None:
         "names": text_block("\n".join(names)),
         "dirs": json_block(dirs),
     }
-    f = len(paths)
     rel_files = {
         tag: {rel_path(p, root): v for p, v in sides[side].files.items()}
         for tag, side in (("b", "baseline"), ("c", "current"))
@@ -340,6 +395,18 @@ def main() -> None:
     del sides, side_paths, rel_files
     gc.collect()
 
+    return meta, blocks
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--input-dir", type=Path, default=Path("output/scale-100k-full"))
+    parser.add_argument("--output", type=Path, default=None)
+    parser.add_argument("--open", action="store_true")
+    args = parser.parse_args()
+    started = time.perf_counter()
+    meta, blocks = build_payload(args.input_dir)
+
     template_dir = Path(__file__).parent
     template = (template_dir / "large.html").read_text(encoding="utf-8")
     worker_src = (template_dir / "large_worker.js").read_text(encoding="utf-8")
@@ -369,9 +436,7 @@ def main() -> None:
     temporary.write_text(template, encoding="utf-8")
     temporary.replace(output)
     elapsed = time.perf_counter() - started
-    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / (
-        1024**2 if sys.platform == "darwin" else 1024
-    )
+    rss = peak_rss_mib()
     sizes = {kind: len(blocks[kind]) for kind in BLOCK_ORDER}
     print(
         json.dumps(
@@ -381,8 +446,8 @@ def main() -> None:
                 "buildSeconds": round(elapsed, 2),
                 "peakRssMiB": round(rss, 1),
                 "blocks": sizes,
-                "files": f,
-                "dirs": len(dirs),
+                "files": meta["scale"]["unionFiles"],
+                "dirs": meta["directoryCount"],
             },
             ensure_ascii=False,
         )

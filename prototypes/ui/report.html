@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'; worker-src blob:">
   <title>Cmetrics / 离线对比报告原型</title>
   <style>@@STYLE@@</style>
 </head>
@@ -15,6 +15,7 @@
   </section>
   <div id="app"></div>
   <div id="toast" role="status" aria-live="polite"></div>
+  @@READER_ASSETS@@
   <script type="application/json" id="report-data">@@DATA@@</script>
   <script>const PROTOTYPE_MODE = @@PROTOTYPE_MODE@@;
 @@SCRIPT@@

@@ -1,5 +1,5 @@
-/* 大数据容量验证原型 Worker：解码 gzip 分块，构建紧凑索引，单遍扫描 + top-K 查询。
- * 状态只保存在 Worker；主线程仅收发消息与渲染当前页。一次性原型，不代表正式实现。 */
+/* 大数据容量验证原型 Worker：解码紧凑数据，完整范围查询、稳定排序后分页。
+ * 查询缓存仅保留最后一组条件；分页不改变候选集合。 */
 'use strict';
 
 const S = {
@@ -10,6 +10,7 @@ const S = {
   dup: null, unsafe: null, redundant: null,
   ready: false,
 };
+let queryCache = null;
 
 async function gunzip(b64) {
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
@@ -37,8 +38,8 @@ function textOf(bytes) {
 
 const LOAD_HANDLERS = {
   meta(bytes) { S.meta = JSON.parse(textOf(bytes)); },
-  paths(bytes) { S.paths = textOf(bytes).split('\n'); S.F = S.paths.length; },
-  names(bytes) { S.names = textOf(bytes).split('\n'); },
+  paths(bytes) { const text=textOf(bytes); S.paths=text?text.split('\n'):[]; S.F=S.paths.length; },
+  names(bytes) { const text=textOf(bytes); S.names=text?text.split('\n'):[]; },
   files(bytes) { S.files = parseBin(bytes).views; },
   dirs(bytes) {
     const parsed = JSON.parse(textOf(bytes));
@@ -107,19 +108,19 @@ function scopeRange(directory) {
 function classify(bEx, cEx, bVal, cVal, ambiguous) {
   const flags = [];
   if (ambiguous) flags.push('ambiguous');
-  else if (bVal == null && cVal == null) flags.push('unknown');
+  else if ((bEx && bVal == null) || (cEx && cVal == null)) flags.push('unknown');
   if (!bEx && cEx) flags.push('entered');
   else if (bEx && !cEx) flags.push('exited');
   else if (!ambiguous && bVal != null && cVal != null) {
     if (cVal > bVal) flags.push('growth');
     else if (cVal < bVal) flags.push('decrease');
     else flags.push('unchanged');
-  } else if (bEx && cEx && !flags.includes('ambiguous')) flags.push('unchanged');
+  }
   return flags;
 }
 
 function changed(flags) {
-  return flags.some(f => f === 'entered' || f === 'exited' || f === 'growth' || f === 'decrease');
+  return flags.some(f => ['entered', 'exited', 'growth', 'decrease', 'ambiguous', 'unknown', 'incomparable'].includes(f));
 }
 
 function matchesStatus(flags, status) {
@@ -129,29 +130,38 @@ function matchesStatus(flags, status) {
 }
 
 function makeSorter(sort) {
-  const dir = sort.endsWith('-asc') ? 1 : -1;
-  if (sort.startsWith('path')) return (a, b) => a.path < b.path ? -dir : a.path > b.path ? dir : 0;
-  if (sort.startsWith('current')) {
-    return (a, b) => ((a.c ?? -Infinity) - (b.c ?? -Infinity)) * dir || (a.path < b.path ? -1 : 1);
-  }
-  return (a, b) => ((a.delta ?? 0) - (b.delta ?? 0)) * dir || (a.path < b.path ? -1 : 1);
+  const direction = sort.endsWith('-asc') ? 1 : -1;
+  const text = (a, b) => a < b ? -1 : a > b ? 1 : 0;
+  const tie = (a, b) => text(a.path, b.path) || text(a.name || '', b.name || '') || text(a.id, b.id);
+  if (sort.startsWith('path')) return (a, b) => direction * tie(a, b);
+  const key = sort.startsWith('current') ? 'c' : 'delta';
+  return (a, b) => {
+    // 未知值在两个方向都排在有效值之后；相等对象必须返回0。
+    const av = a[key], bv = b[key];
+    if (av == null || bv == null) return av == null && bv == null ? tie(a, b) : av == null ? 1 : -1;
+    return (av - bv) * direction || tie(a, b);
+  };
 }
 
-function insertTopK(rows, row, cmp, K) {
-  let lo = 0, hi = rows.length;
-  while (lo < hi) { const mid = (lo + hi) >> 1; cmp(rows[mid], row) <= 0 ? (lo = mid + 1) : (hi = mid); }
-  rows.splice(lo, 0, row);
-  if (rows.length > K) rows.pop();
+function queryPage(cache, q) {
+  const pageSize = Math.max(1, Math.min(Math.trunc(q.pageSize || 50), 200));
+  const pages = Math.ceil(cache.rows.length / pageSize);
+  const page = pages ? Math.max(1, Math.min(Math.trunc(q.page || 1), pages)) : 0;
+  return {
+    rows: cache.rows.slice(Math.max(0, page - 1) * pageSize, page * pageSize),
+    total: cache.rows.length, pages, page, counts: cache.counts,
+    scopeCount: cache.scopeCount, scope: cache.scope,
+  };
 }
 
 function newCounters() {
-  return { changes: 0, growth: 0, decrease: 0, unchanged: 0, entered: 0, exited: 0, ambiguous: 0, all: 0 };
+  return { changes: 0, growth: 0, decrease: 0, unchanged: 0, entered: 0, exited: 0, ambiguous: 0, unknown: 0, incomparable: 0, all: 0 };
 }
 
 function bump(counters, flags) {
   counters.all++;
   if (changed(flags)) counters.changes++;
-  for (const f of ['growth', 'decrease', 'unchanged', 'entered', 'exited', 'ambiguous']) {
+  for (const f of ['growth', 'decrease', 'unchanged', 'entered', 'exited', 'ambiguous', 'unknown', 'incomparable']) {
     if (flags.includes(f)) counters[f]++;
   }
 }
@@ -165,15 +175,20 @@ function fileBaseRow(f, bVal, cVal, flags, kind) {
 }
 
 function runQuery(q) {
+  const conditions = {...q};
+  delete conditions.page;
+  delete conditions.pageSize;
+  const cacheKey = JSON.stringify(conditions);
+  if (queryCache?.key === cacheKey) return queryPage(queryCache, q);
+  queryCache = null;
   const [lo, hi] = scopeRange(q.directory);
   const qs = (q.search || '').trim().toLowerCase();
-  const K = Math.min(q.pageSize || 50, 200);
-  const requestedPage = Math.max(1, Math.min(q.page || 1, 50));
-  const cap = K * requestedPage;
+  const namesMatching = new Set();
+  if (qs) for (let i = 0; i < S.names.length; i++) if (S.names[i].toLowerCase().includes(qs)) namesMatching.add(i);
   const cmp = makeSorter(q.sort || 'delta-desc');
   const counters = newCounters();
-  const top = [];
-  const match = (row) => { bump(counters, row.flags); if (matchesStatus(row.flags, q.status)) insertTopK(top, row, cmp, cap); };
+  const matches = [];
+  const match = (row) => { bump(counters, row.flags); if (matchesStatus(row.flags, q.status || 'changes')) matches.push(row); };
   const type = q.type;
   if (type === 'files' || type === 'duplication') {
     const useDup = type === 'duplication' || q.metric === 'dup';
@@ -187,7 +202,8 @@ function runQuery(q) {
   } else if (type === 'methods') {
     const useCc = q.metric === 'cc';
     for (let f = lo; f < hi; f++) {
-      if (qs && !S.paths[f].toLowerCase().includes(qs)) continue;
+      const pathMatches = !qs || S.paths[f].toLowerCase().includes(qs);
+      if (!pathMatches && !namesMatching.size) continue;
       const bEx = S.files.bEx[f], cEx = S.files.cEx[f];
       if (!bEx && !cEx) continue;
       const bStart = S.rangeB[f], bEnd = S.rangeB[f + 1];
@@ -204,6 +220,7 @@ function runQuery(q) {
         names.get(na).c.push(i);
       }
       for (const [na, slots] of names) {
+        if (!pathMatches && !namesMatching.has(na)) continue;
         const ambiguous = slots.b.length > 1 || slots.c.length > 1;
         const pick = (side, i) => {
           if (i == null) return null;
@@ -234,7 +251,7 @@ function runQuery(q) {
       for (let i = 0; i < rows.f.length; i++) {
         const f = rows.f[i];
         if (f < lo || f >= hi) continue;
-        if (qs && !S.paths[f].toLowerCase().includes(qs)) continue;
+        if (qs && !S.paths[f].toLowerCase().includes(qs) && !(type === 'unsafe' && namesMatching.has(rows.na[i]))) continue;
         const key = type === 'unsafe' ? `${f}:${rows.na[i]}:${rows.ln[i]}` : `${f}:${rows.ln[i]}`;
         const slot = merged.get(key) || { f, na: type === 'unsafe' ? rows.na[i] : -1, ln: rows.ln[i], b: false, c: false };
         slot[side === 'baseline' ? 'b' : 'c'] = true;
@@ -266,15 +283,11 @@ function runQuery(q) {
   } else {
     throw new Error(`不支持的查询类型：${type}`);
   }
-  const statusTotal = q.status === 'all' ? counters.all : (counters[q.status] ?? counters.all);
-  const pages = Math.max(1, Math.ceil(statusTotal / K));
-  const clamped = Math.max(1, Math.min(q.page || 1, pages));
-  return {
-    rows: top.slice((clamped - 1) * K, clamped * K),
-    total: statusTotal, pages, page: clamped,
-    counts: counters, scopeCount: hi - lo,
-    scope: scopeSummary(lo, hi),
+  queryCache = {
+    key: cacheKey, rows: matches.sort(cmp), counts: counters,
+    scopeCount: hi - lo, scope: scopeSummary(lo, hi),
   };
+  return queryPage(queryCache, q);
 }
 
 function scopeSummary(lo, hi) {
@@ -354,7 +367,7 @@ function runEvidence(req) {
     const groups = [];
     const seen = new Set();
     for (const item of fragList) {
-      const key = `${item.side}:${item.g}`;
+      const key = `${item.side}:${S.meta.groups[item.side][item.g]}`;
       if (seen.has(key)) continue;
       seen.add(key);
       const memberIdx = S.groupFragIdx[item.side][item.g];
@@ -518,6 +531,8 @@ self.onmessage = async event => {
   const started = performance.now();
   try {
     if (msg.op === 'load') {
+      queryCache = null;
+      S.ready = false;
       const bytes = await gunzip(msg.b64);
       LOAD_HANDLERS[msg.kind](bytes);
       self.postMessage({ type: 'loaded', id: msg.id, kind: msg.kind, ms: Math.round(performance.now() - started) });

@@ -24,3 +24,14 @@
 @media(max-width:1230px){.analysis-grid,.analysis-grid.wide-evidence{grid-template-columns:145px minmax(330px,1fr) minmax(340px,1fr);gap:10px}.analysis-grid>.panel{padding:12px}.metric-summary{padding:15px 13px}.metric-delta{font-size:28px}.metrics-grid{grid-template-columns:repeat(3,minmax(0,1fr))}.group-columns{grid-template-columns:1fr}.pair-values{gap:5px;padding:10px 7px}.pair-values strong{font-size:18px}.analysis-page{padding:20px 15px}.overview-page{padding:22px}.chart-row{grid-template-columns:125px 1fr 60px}}
 @media(max-width:950px){.analysis-grid,.analysis-grid.wide-evidence{grid-template-columns:145px 1fr}.evidence-panel{grid-column:2;position:static;max-height:none}.tree-panel{grid-row:1/3}.metrics-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.overview-grid{grid-template-columns:1fr}.group-columns{grid-template-columns:1fr 1fr}.analysis-total{display:none}.app-header{padding:0 18px;gap:16px}.app-header nav button{padding:10px 12px}.comparison{flex-wrap:wrap;gap:9px}.comparison>.spacer{display:none}}
 @media(max-width:640px){.app-header{height:auto;flex-wrap:wrap;padding:15px;gap:12px}.app-header .prototype-label{display:none}.app-header nav{order:3;width:100%}.app-header nav button{flex:1}.analysis-grid,.analysis-grid.wide-evidence{grid-template-columns:1fr}.tree-panel{position:static;grid-row:auto}.directory-tree{display:flex;overflow:auto}.directory-tree button{width:auto;white-space:nowrap}.tree-panel .panel-head{display:none}.evidence-panel{grid-column:1}.analysis-heading{flex-wrap:wrap}.analysis-metrics.panel{padding:8px 12px}.metric-category{grid-template-columns:1fr;gap:8px;padding:10px 0}.metric-options{gap:6px}.metric-options button{padding:8px 10px}.metric-summary{padding:14px 12px}.metric-movements{padding:0 12px 12px;gap:5px}.movement{flex-basis:100%}.overview-switches{width:100%;gap:6px}.overview-switches button{padding:8px;font-size:10px}.overview-files td,.overview-files th{padding:11px 5px}.metric-name{font-size:11px}.metric-delta{font-size:26px}.group-columns{grid-template-columns:1fr}.overview-page{padding:18px 14px}.section-head h1{font-size:21px}.comparison .repo{width:100%;margin-bottom:5px}.panel{padding:16px}.chart-row{grid-template-columns:115px 1fr 55px}.scope-total{flex-wrap:wrap}.member-summary{gap:20px}}
+
+/* 异步查询提示独立于重绘区域，输入期间不替换表单节点。 */
+.query-notice{position:sticky;top:0;z-index:30;padding:10px 20px;background:#edf5fb;color:#244a65;border-bottom:1px solid #cbdce9}
+.query-notice[hidden]{display:none}
+.query-notice.query-error{background:#fff2df;color:#794c17}
+.directory-breadcrumb{padding:12px;overflow-wrap:anywhere;border-bottom:1px solid var(--line)}
+.directory-breadcrumb button{white-space:normal;text-align:left}
+.directory-breadcrumb [aria-current]{font-weight:700}
+.query-back{margin:8px 16px}
+.pagination .page-jump{width:5rem;padding:5px 6px;font-size:11px}
+.pagination:has(.page-jump),.pagination:has(.page-jump) .row{flex-wrap:wrap}

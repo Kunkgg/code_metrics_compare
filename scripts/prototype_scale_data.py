@@ -11,13 +11,13 @@ import argparse
 import json
 import math
 import random
-import resource
 import sys
 import time
 from pathlib import Path
 from typing import Any
 
 from cmetrics_cmp_viz.schema import is_header_file, safe_div
+from prototypes.resource_usage import peak_rss_mib
 from prototypes.ui.prototype_data import ROOT, THRESHOLDS
 
 
@@ -295,11 +295,10 @@ def main() -> None:
     del baseline
     if args.validate:
         manifest["checksPassed"] = args.validate
-    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
     manifest["measurement"] = {
         "generationSeconds": round(generated, 3),
         "totalSecondsIncludingValidationAndWrite": round(time.perf_counter() - started, 3),
-        "peakRssMiB": round(rss / (1024**2 if sys.platform == "darwin" else 1024), 3),
+        "peakRssMiB": round(peak_rss_mib(), 3),
         "python": sys.version,
     }
     (args.output_dir / "manifest.json").write_text(

@@ -47,6 +47,21 @@
   };
   let version = 0;
   const pending = new Map();
+  const generations = {query: 0, directories: 0, evidence: 0};
+  const activeRequests = new Set();
+  function beginRequest(channel) {
+    const generation = ++generations[channel];
+    activeRequests.add(`${channel}:${generation}`);
+    scale.busy = true;
+    return generation;
+  }
+  function finishRequest(channel, generation) {
+    activeRequests.delete(`${channel}:${generation}`);
+    scale.busy = activeRequests.size > 0;
+  }
+  function currentRequest(channel, generation) {
+    return generation === generations[channel] && state.view === 'workspace';
+  }
   const metrics = {init: {}, entries: []};
   const scale = {
     ready: false, busy: false, state, metrics,
@@ -221,7 +236,7 @@
     const sc = payload.scope;
     $('#q-scope').textContent = `范围 ${state.directory || '全部'}：基线 ${fmtInt(sc.filesB)} 文件／${fmtInt(sc.codeB)} 行，当前 ${fmtInt(sc.filesC)} 文件／${fmtInt(sc.codeC)} 行`;
     $('#q-pager').innerHTML = `<span>${fmtInt(payload.total)} 项</span>
-      <div class="row"><button data-action="page" data-value="-1" ${payload.page === 1 ? 'disabled' : ''}>←</button><span>${payload.page} / ${payload.pages}</span><button data-action="page" data-value="1" ${payload.page === payload.pages ? 'disabled' : ''}>→</button></div>`;
+      <div class="row"><button data-action="page" data-value="-1" ${payload.page <= 1 ? 'disabled' : ''}>←</button><span>${payload.page} / ${payload.pages}</span><button data-action="page" data-value="1" ${payload.page >= payload.pages ? 'disabled' : ''}>→</button></div>`;
   }
 
   function renderDirectories(payload) {
@@ -303,7 +318,10 @@
 
   async function refreshTable() {
     if (!scale.ready) return null;
-    scale.busy = true;
+    const generation = beginRequest('query');
+    generations.evidence++;
+    $('#table-region')?.setAttribute('aria-busy', 'true');
+    if ($('#q-count')) $('#q-count').textContent = '正在查询，新条件尚未完成…';
     try {
       const t0 = performance.now();
       const payload = await send('query', {query: {
@@ -311,46 +329,70 @@
         search: state.search, status: state.status, sort: state.sort,
         page: state.page, pageSize: state.pageSize,
       }});
+      if (!currentRequest('query', generation)) return {status: 'cancelled'};
+      state.page = payload.page;
       renderStatusTabs(payload.counts);
       renderTable(payload);
+      $('#table-region').removeAttribute('aria-busy');
       await twoRaf();
+      if (!currentRequest('query', generation)) return {status: 'cancelled'};
       const elapsed = Math.round(performance.now() - t0);
       log({op: 'query', type: state.type, status: state.status, ms: elapsed, workerMs: payload.elapsedWorkerMs, total: payload.total});
-      return {elapsedMs: elapsed, workerMs: payload.elapsedWorkerMs, total: payload.total, pages: payload.pages, page: payload.page};
-    } finally { scale.busy = false; }
+      return {status: 'complete', elapsedMs: elapsed, workerMs: payload.elapsedWorkerMs, total: payload.total, pages: payload.pages, page: payload.page};
+    } catch (error) {
+      if (!currentRequest('query', generation)) return {status: 'cancelled'};
+      $('#q-count').textContent = `查询失败：${error.message}`;
+      $('#table-region').innerHTML = '<p class="notice">新条件未完成，请重试。</p>';
+      $('#table-region').removeAttribute('aria-busy');
+      return {status: 'failed', error: error.message};
+    } finally { finishRequest('query', generation); }
   }
 
   async function refreshDirectories() {
     if (!scale.ready) return null;
-    scale.busy = true;
+    const generation = beginRequest('directories');
     try {
       const t0 = performance.now();
       const payload = await send('directories', {path: state.directory, search: state.dirSearch, page: state.dirPage, pageSize: 50});
+      if (!currentRequest('directories', generation)) return {status: 'cancelled'};
       renderDirectories(payload);
       await twoRaf();
+      if (!currentRequest('directories', generation)) return {status: 'cancelled'};
       const elapsed = Math.round(performance.now() - t0);
       log({op: 'directories', ms: elapsed, workerMs: payload.elapsedWorkerMs, total: payload.total});
-      return {elapsedMs: elapsed, workerMs: payload.elapsedWorkerMs, total: payload.total, page: payload.page, pages: payload.pages};
-    } finally { scale.busy = false; }
+      return {status: 'complete', elapsedMs: elapsed, workerMs: payload.elapsedWorkerMs, total: payload.total, page: payload.page, pages: payload.pages};
+    } catch (error) {
+      if (!currentRequest('directories', generation)) return {status: 'cancelled'};
+      $('#dir-list').innerHTML = `<p class="notice">目录查询失败：${esc(error.message)}</p>`;
+      return {status: 'failed', error: error.message};
+    } finally { finishRequest('directories', generation); }
   }
 
   async function refreshEvidence() {
-    if (!scale.ready || !state.selected) { renderEvidence(null); return null; }
-    scale.busy = true;
+    const generation = beginRequest('evidence');
     try {
+      if (!scale.ready || !state.selected) { renderEvidence(null); return null; }
       const t0 = performance.now();
-      const payload = await send('evidence', {rowId: state.selected, type: state.type, opts: {
+      const selected = state.selected;
+      const payload = await send('evidence', {rowId: selected, type: state.type, opts: {
         fragPage: state.fragPages, memberPage: state.memberPage, memberQuery: state.memberQuery, memberStatus: state.memberStatus,
       }});
+      if (!currentRequest('evidence', generation) || state.selected !== selected) return {status: 'cancelled'};
       renderEvidence(payload);
       await twoRaf();
+      if (!currentRequest('evidence', generation) || state.selected !== selected) return {status: 'cancelled'};
       const elapsed = Math.round(performance.now() - t0);
       log({op: 'evidence', ms: elapsed, workerMs: payload.elapsedWorkerMs});
-      return {elapsedMs: elapsed, workerMs: payload.elapsedWorkerMs};
-    } finally { scale.busy = false; }
+      return {status: 'complete', elapsedMs: elapsed, workerMs: payload.elapsedWorkerMs};
+    } catch (error) {
+      if (!currentRequest('evidence', generation)) return {status: 'cancelled'};
+      $('#evidence-region').innerHTML = `<p class="notice">证据查询失败：${esc(error.message)}</p>`;
+      return {status: 'failed', error: error.message};
+    } finally { finishRequest('evidence', generation); }
   }
 
   function renderView() {
+    for (const channel of Object.keys(generations)) generations[channel]++;
     $('#header-region').innerHTML = headerHtml();
     $('#view').innerHTML = state.view === 'overview' ? overviewHtml() : '';
     if (state.view === 'workspace') { buildWorkspace(); renderTypeTabs(); renderStatusTabs(null); }
@@ -388,7 +430,7 @@
 
   scale.bench = async (action, patch, times = 20) => {
     const samples = [];
-    for (let i = 0; i < times; i++) samples.push(await scale.run(action, {...patch, page: 1}));
+    for (let i = 0; i < times; i++) samples.push(await scale.run(action, {...patch}));
     const sorted = samples.map(s => s.elapsedMs).sort((a, b) => a - b);
     const rank = q => sorted[Math.min(sorted.length - 1, Math.ceil(q * sorted.length) - 1)];
     return {times, p50: rank(0.5), p95: rank(0.95), min: sorted[0], max: sorted[sorted.length - 1], workerP95: samples.map(s => s.workerMs).sort((a, b) => a - b)[Math.ceil(0.95 * times) - 1], lastTotal: samples[samples.length - 1]?.total ?? null};
