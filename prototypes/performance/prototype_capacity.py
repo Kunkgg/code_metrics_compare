@@ -83,6 +83,8 @@ def bin_block(arrays: list[tuple[str, str, Any]]) -> str:
 
 
 def rel_path(path: str, root: str) -> str:
+    if path == root:
+        return ""
     prefix = f"{root}/"
     if not path.startswith(prefix):
         raise ValueError(f"路径不在扫描根下：{path}")

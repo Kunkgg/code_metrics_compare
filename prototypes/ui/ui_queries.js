@@ -83,11 +83,14 @@ function uiFileValue(file,type,side){
 
 function uiMethodValue(index,type,side){
   const m=uiMethodIndex(),tag=side==='baseline'?'b':'c';
-  if(m.bCount[index]>1||m.cCount[index]>1)return null;
-  if(!m[tag+'Count'][index])return 0;
-  const data=(tag==='b'?S.mB:S.mC).views,record=m.records[tag][m[tag+'Start'][index]],cc=type==='cc'||type==='hugeCC';
-  if(data.valid&&!(data.valid[record]&(cc?2:1)))return null;
-  return data[cc?'cc':'ln'][record];
+  const data=(tag==='b'?S.mB:S.mC).views,cc=type==='cc'||type==='hugeCC';
+  let total=0;
+  for(let at=m[tag+'Start'][index];at<m[tag+'Start'][index]+m[tag+'Count'][index];at++){
+    const record=m.records[tag][at];
+    if(data.valid&&!(data.valid[record]&(cc?2:1)))return null;
+    total+=data[cc?'cc':'ln'][record];
+  }
+  return total;
 }
 
 function uiMembers(directory){
@@ -109,7 +112,7 @@ function uiSource(type){
     if(method)return uiMethodValue(i,type,side);
     if(position)return p[i][side==='baseline'?'b':'c'];
     const key=side==='baseline'?'kB':'kC',declared=S.dirs[i][key];
-    return declared!=null&&side==='current'&&uiContext.limitedFolder===i?declared+3:declared;
+    return declared!=null?side==='current'&&uiContext.limitedFolder===i?declared+3:declared:uiMembers(S.dirs[i])[side==='baseline'?'b':'c'];
   };
   const path=i=>type==='folders'?S.dirs[i].p:S.paths[fileId(i)];
   const name=i=>method||type==='unsafe'?S.names[nameId(i)]:type==='redundant'?'冗余代码':path(i).slice(path(i).lastIndexOf('/')+1);
@@ -152,8 +155,11 @@ function uiSource(type){
     if(entered&&transitionKnown)flags.push('entered');if(exited&&transitionKnown)flags.push('exited');
     const objectPath=path(i),objectName=name(i),kind=file?'file':method?'method':position?type:'folder';
     const thresholdChanged=!!limits&&Number.isFinite(limits.b)&&Number.isFinite(limits.c)&&limits.b!==limits.c;
-    const result={thresholdChanged,warning:thresholdChanged?'阈值变化；两侧分别按各自阈值严格大于判定，清单进出不证明代码恶化或改善。':null,kind,path:objectPath,name:objectName,b,c,delta,flags,changed:delta!==0||thresholdChanged&&transitionKnown&&(entered||exited)||incomparable,ambiguous,transitionKnown};
-    if(method){result.beforeCount=m.bCount[i];result.afterCount=m.cCount[i];}
+    const result={thresholdChanged,warning:thresholdChanged?'阈值变化；两侧分别按各自阈值严格大于判定，清单进出不证明代码恶化或改善。':null,kind,path:objectPath,name:objectName,b,c,delta,flags,changed:ambiguous||delta!==0||thresholdChanged&&transitionKnown&&(entered||exited)||incomparable,ambiguous,transitionKnown};
+    if(method){
+      result.beforeCount=m.bCount[i];result.afterCount=m.cCount[i];
+      if(ambiguous){result.comparisonBasis='same-name-total';result.warning='同名函数可能混淆；此处比较同文件同名函数集合的总量。';}
+    }
     if(position)result.line=p[i].line;
     return result;
   };
@@ -181,7 +187,7 @@ function uiSource(type){
     if(position){result.before=p[i].b?{line:p[i].line}:undefined;result.after=p[i].c?{line:p[i].line}:undefined;}
     if(type==='folders'){
       const members=uiMembers(S.dirs[i]);
-      Object.assign(result,{recoveredBefore:members.b,recoveredAfter:members.c,addedMembers:members.entered,removedMembers:members.exited});
+      Object.assign(result,{declaredBefore:S.dirs[i].kB,declaredAfter:S.dirs[i].kC,recoveredBefore:members.b,recoveredAfter:members.c,addedMembers:members.entered,removedMembers:members.exited});
     }
     return result;
   };
@@ -191,7 +197,7 @@ function uiSource(type){
   };
   return {type,count:file?S.F:method?m.count:position?p.length:S.dirs.length,fileId,path,name,value,included,row,detail,tie,
     range:(lo,hi)=>file?[lo,hi]:method?[m.range[lo],m.range[hi]]:[0,position?p.length:S.dirs.length],
-    identitySort:(a,b)=>method||type==='unsafe'?nameId(a)-nameId(b)||tie(a,b):tie(a,b)};
+    identitySort:tie};
 }
 
 function uiMatchesStatus(row,status){

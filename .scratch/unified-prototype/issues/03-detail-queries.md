@@ -18,7 +18,9 @@ Status: claimed
 - 核验全部 33 项汇总及最大值，不能用旧26项自检替代。
 - 更新独立原始输入预期、异常夹具与浏览器回归，在100k重测函数查询和资源。
 
-## 已确认的 14 条失败断言
+## 原登记的 14 条失败断言（本轮已修复）
+
+以下为修复前记录，保留用于追溯。
 
 这里的 14 指参考 UI 对照 golden 的失败断言数量，集中在下列三类实现问题；同一问题会影响多个列表或过滤结果。当前检查执行 `prototypes/ui/prototype.js` 的业务函数，不代表完整 Worker 或浏览器验收。
 
@@ -39,14 +41,30 @@ Status: claimed
 
 逐条登记见 [business_known_gaps.json](../../../tests/business_known_gaps.json)；业务预期及手算说明见 [method-lines](../../../tests/fixtures/golden/method-lines/README.md) 和 [Golden Dataset 索引](../../../tests/fixtures/golden/README.md)。测试入口是 [test_golden.py](../../../tests/test_golden.py)，通过 [check-business-fixture.cjs](../../../scripts/prototype_checks/check-business-fixture.cjs) 调用参考 UI。
 
-验收时应修正实现，使这些已批准预期正常通过，再移除对应的 `strict xfail` 登记及失败摘要。不能通过改写 golden 或放宽比较来消除失败。当前仅补充差距说明，统一原型主任务仍暂停。
+验收修复已落实：路径优先排序、按侧同名集合总量及记录数已接入参考 UI 和 Worker，14 项旧 `strict xfail` 登记已清空。业务预期未改写。
+
+当前另有一条已批准预期冲突：`threshold-change / hugeMethod all` 未指定排序，入口默认 `path:asc`，但预期仍按名称把 `above/b.c:above` 放在 `above/a.c:equal` 前。参考 UI 与 Worker 均按路径优先返回；保留为真实失败，需人工确认后才能修订已批准预期及审核摘要。
 
 ## 边界
 
-统一原型继续暂停，本轮不修实现、不启动大规模测试；后续计划另行调整，本轮不重写已有阶段计划。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [Golden Dataset](../../../tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见保留在 [review-issues.md](../../../tests/fixtures/golden/review-issues.md)。Schema／生成约束已迁入 `tests/fixtures/validation/`。
+用户本轮恢复原型验证；先做阶段 2–4 小规模功能与测量，100k 重测后置到统一性能阶段。以下数据批准范围保持不变：已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [Golden Dataset](../../../tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见保留在 [review-issues.md](../../../tests/fixtures/golden/review-issues.md)。Schema／生成约束已迁入 `tests/fixtures/validation/`。
 
 12 项净影响在阶段 3，所有关联证据集合分页在阶段 4。仍保留已有全部入口；不以未接入、异常或仅当前页冒充确定的全量结果。
 
 ## 实验记录
 
-部分代码已实现，尚无阶段完成证据。当前参考 UI 的 414 项业务断言中，400 项通过，14 项为函数排序、同名聚合计数的真实实现差距；已按具体断言设置 `strict xfail` 并锁定失败形态，不将其记为数据审核未通过。统一原型继续暂停，本轮不修实现、不启动大规模测试；后续计划另行调整，本轮不重写已有阶段计划。见 [spec](../spec.md)。
+本轮已恢复执行，详情见下方 Comments。阶段尚未宣称完成；Windows／Edge、满规模与长时矩阵仍待执行。
+
+## Comments
+
+本轮恢复后的阶段 2：
+
+- 修复参考 UI 原 14 条函数排序／同名聚合／记录数差距，清空过期 xfail；补齐 Worker 对应实现。
+- 修复紧凑构建根目录自身路径、超大目录未申报侧的恢复值；扫描申报值与恢复值分别保留。
+- 新增 `scripts/prototype_checks/check-worker-business.cjs`：15 组输入构建真实内嵌 Worker，逐页对照批准预期，并逐字段核对全部序列化汇总与最大值。每任务保留 20 次 Node VM 样本，明确不代替 DOM 性能。
+- 浏览器文件任务原检查更新为函数已接入；小规模 Chrome 31 项通过。新增 `check-unified-workspace.js` 验证三页、全部 20 个指标、概览多选与有界 DOM；修改后重新执行的证据见后续记录。
+- 初次完整 pytest：483 通过、1 失败；唯一失败为上文排序预期冲突。保留真实失败，不修改 Golden。
+- 最终 Chrome 文件任务 31 项、三页／20 指标／净影响 2,462 项、证据专项 34 项、Node 文件契约 45 项通过。完整序列化汇总加入后 Worker 1,523／1,524 通过；独立净影响 722 项、证据 99 项通过，见 [04](04-net-impact.md)、[05](05-evidence.md)。
+- 最终完整 pytest 仍为 483 通过、1 失败，唯一失败为排序预期冲突。Ruff、格式检查、Pyright 通过。
+- 逐次原始输出在 `output/unified-prototype/resume-*`。大规模、Windows／Edge 尚未执行，不以本机结果代替。
+- 源码归档分支 `spike/unified-prototype`，本轮提交标题“原型：接通小规模明细、净影响与完整分页证据”；恢复前基点 `de61d37`。

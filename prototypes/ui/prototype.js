@@ -101,7 +101,7 @@
     for(const side of ['baseline','current'])for(const m of sides[side].methods){const key=JSON.stringify([m.path,m.method_name]);if(!methodMaps[side].has(key))methodMaps[side].set(key,[]);methodMaps[side].get(key).push(m);}
     const methodRows=union(methodMaps.baseline.keys(),methodMaps.current.keys()).map(key=>{
       const before=methodMaps.baseline.get(key)||[],after=methodMaps.current.get(key)||[],m=after[0]||before[0];
-      return {id:`method:${key}`,kind:'method',path:m.path,name:m.method_name,before,after,ambiguous:before.length>1||after.length>1};
+      return {id:`method:${key}`,kind:'method',path:m.path,name:m.method_name,before,after,beforeCount:before.length,afterCount:after.length,ambiguous:before.length>1||after.length>1};
     });
     const dirs=new Set(['']);
     for(const row of fileRows){const parts=row.path.split('/');for(let i=1;i<parts.length;i++)dirs.add(parts.slice(0,i).join('/'));}
@@ -123,14 +123,16 @@
     return union(b.keys(),c.keys()).map(id=>({...c.get(id)||b.get(id),before:b.has(id),after:c.has(id),status:!b.has(id)?'entered':!c.has(id)?'exited':'same'})).sort((a,b)=>({entered:0,exited:1,same:2}[a.status]-{entered:0,exited:1,same:2}[b.status])||a.name.localeCompare(b.name));
   }
   function decorated(row,b,c,extra={}) {
-    const delta=row.ambiguous?null:knownDelta(b,c);
+    // 同名集合只比较两侧总量，不据此建立逐函数配对；内部差值不做显示舍入。
+    const delta=(row.ambiguous&&extra.comparisonBasis!=='same-name-total')||b==null||c==null?null:c-b;
     const entered=extra.entered??(!row.before?.length&&!!row.after?.length),exited=extra.exited??(!!row.before?.length&&!row.after?.length);
     const flags=[];
-    if(row.ambiguous)flags.push('ambiguous');else if(b==null||c==null)flags.push('unknown');
+    if(row.ambiguous)flags.push('ambiguous');if(b==null||c==null)flags.push('unknown');
     if(extra.incomparable)flags.push('incomparable');
     if(delta>0&&!extra.incomparable)flags.push('growth');if(delta<0&&!extra.incomparable)flags.push('decrease');
     if(entered)flags.push('entered');if(exited)flags.push('exited');
-    return {...row,b,c,delta,flags,changed:delta!==0||!!extra.thresholdChanged&&(entered||exited)||flags.includes('incomparable'),...extra,warning:extra.thresholdChanged?'阈值变化；两侧分别按各自阈值严格大于判定，清单进出不证明代码恶化或改善。':null};
+    const warnings=[extra.warning,extra.thresholdChanged?'阈值变化；两侧分别按各自阈值严格大于判定，清单进出不证明代码恶化或改善。':null].filter(Boolean);
+    return {...row,b,c,delta,flags,changed:row.ambiguous||delta!==0||!!extra.thresholdChanged&&(entered||exited)||flags.includes('incomparable'),...extra,warning:warnings.join(' ')||null};
   }
   function rowsFor(type) {
     if(reader)return type===state.type?(snapshot?.query.rows||[]):[];
@@ -150,8 +152,15 @@
     if(['methodLines','cc','hugeMethod','hugeCC'].includes(type)) {
       const field=['cc','hugeCC'].includes(type)?'cyclomatic_complexity':'nbnc_loc',key=thresholdKey(type);
       return model.methodRows.filter(row=>!key||row.before.some(m=>m[field]>b.summary.huge_threshold[key])||row.after.some(m=>m[field]>c.summary.huge_threshold[key])).map(row=>{
-        const before=row.ambiguous?null:row.before[0]?.[field]??0,after=row.ambiguous?null:row.after[0]?.[field]??0;let extra={};
-        if(key&&!row.ambiguous)extra={entered:!(before>b.summary.huge_threshold[key])&&after>c.summary.huge_threshold[key],exited:before>b.summary.huge_threshold[key]&&!(after>c.summary.huge_threshold[key])};
+        const sum=items=>items.every(m=>Number.isFinite(m[field]))?total(items,m=>m[field]):null;
+        const before=sum(row.before),after=sum(row.after);
+        let extra=row.ambiguous?{comparisonBasis:'same-name-total',warning:'同名函数可能混淆；此处比较同文件同名函数集合的总量。'}:{};
+        // 超限按单个函数判定；集合总量不用于推断歧义对象的进出。
+        if(key){
+          const known=!row.ambiguous&&before!=null&&after!=null&&Number.isFinite(b.summary.huge_threshold[key])&&Number.isFinite(c.summary.huge_threshold[key]);
+          extra.entered=known&&!(before>b.summary.huge_threshold[key])&&after>c.summary.huge_threshold[key];
+          extra.exited=known&&before>b.summary.huge_threshold[key]&&!(after>c.summary.huge_threshold[key]);
+        }
         if(key){extra.thresholdChanged=b.summary.huge_threshold[key]!==c.summary.huge_threshold[key];extra.incomparable=!Number.isFinite(b.summary.huge_threshold[key])||!Number.isFinite(c.summary.huge_threshold[key]);}
         return decorated(row,before,after,extra);
       });
@@ -174,7 +183,7 @@
     const threshold=thresholdKey(state.type);
     const exceptions=row.flags.filter(f=>['ambiguous','unknown','incomparable'].includes(f));
     if(exceptions.length){
-      const labels=exceptions.map(f=>badge(statusNames[f],'warning'));
+      const labels=exceptions.map(f=>badge(f==='ambiguous'&&row.comparisonBasis==='same-name-total'?'同名函数可能混淆':statusNames[f],'warning'));
       if(threshold&&row.transitionKnown){
         if(row.flags.includes('entered'))labels.push(badge('新增超限','growth'));
         if(row.flags.includes('exited'))labels.push(badge('退出超限','decrease'));
@@ -232,7 +241,7 @@
     if(existenceType())return [['changes','全部变化'],['entered',['dupfiles','sourceDupfiles'].includes(state.type)?'进入重复清单':'记录新增'],['exited',['dupfiles','sourceDupfiles'].includes(state.type)?'退出重复清单':'记录消失'],['unchanged','无变化'],['all','全部记录']];
     return [['changes','全部变化'],['growth','只看增长'],['decrease','只看减少'],['unchanged','无变化'],['all','全部对象']];
   }
-  const sortIdentity = () => ['methodLines','cc','hugeMethod','hugeCC','unsafe'].includes(state.type)?'名称':'路径';
+  const sortIdentity = () => ['methodLines','cc','hugeMethod','hugeCC'].includes(state.type)?'路径及同路径名称':state.type==='unsafe'?'名称':'路径';
   function sortDescription() {
     const [field,direction]=state.sort.split(':');
     if(field==='path')return `${sortIdentity()}${direction==='asc'?' A → Z':' Z → A'}`;
@@ -255,11 +264,11 @@
     rows.sort((a,b)=>{
       const [field,direction]=state.sort.split(':');
       if(field==='path') {
-        const identity=row=>sortIdentity()==='名称'?`${row.name}/${row.path}`:row.path;
-        return identity(a).localeCompare(identity(b))*(direction==='asc'?1:-1);
+        const order=state.type==='unsafe'?(a.name.localeCompare(b.name)||a.path.localeCompare(b.path)):(a.path.localeCompare(b.path)||(a.name??'').localeCompare(b.name??''));
+        return order*(direction==='asc'?1:-1);
       }
       if(a[field]==null&&b[field]==null)return a.path.localeCompare(b.path);if(a[field]==null)return 1;if(b[field]==null)return -1;
-      return (a[field]-b[field])*(direction==='asc'?1:-1)||a.path.localeCompare(b.path);
+      return (a[field]-b[field])*(direction==='asc'?1:-1)||a.path.localeCompare(b.path)||(a.name??'').localeCompare(b.name??'');
     });
     return {rows,candidates,total:rows.length,counts:Object.fromEntries(statusOptions().map(([value])=>[value,candidates.filter(row=>matchesStatus(row,value)).length])),allCount:all.length,scopeCount:scopeRows.length,exceptionsCount:scopeRows.filter(hasException).length,resultExceptionsCount:rows.filter(hasException).length,scope};
   }
@@ -367,7 +376,7 @@
     const slice=reader?q.rows:q.rows.slice((state.page-1)*state.pageSize,state.page*state.pageSize),key=thresholdKey(state.type);
     const additive=['code','duplication','sourceDuplication','methodLines','cc'].includes(state.type),scope=additive?aggregate(q.scope,state.type):null;
     const detailLabel={code:'文件代码行',duplication:'重复代码行',sourceDuplication:'源代码重复行',methodLines:'函数代码行',cc:'圈复杂度'}[state.type];
-    return `<div class="scope-title"><div><small>查找范围</small><strong>${esc(q.scope||'全部目录')}${q.scope&&!state.exactFile?' / 含子目录':''}</strong></div><span class="spacer"></span></div>${state.trail.length?'<button class="text query-back" data-action="back">← 返回上次阅读位置</button>':''}${controls(q)}${key?`<div class="threshold-note">${thresholdCondition(state.type)}</div>`:''}${scope?`<div class="scope-total" title="当前目录完整数据，不受表内筛选影响${['cc','methodLines'].includes(state.type)?'；同名函数按两侧原始值各自求和':''}"><span>完整范围 · ${detailLabel}合计</span><b>${fmt(scope.baseline.value)}</b><span>→</span><b>${fmt(scope.current.value)}</b><span class="${cls(scope.delta)}">${deltaText(scope.delta)}</span>${scope.current.valid!==scope.current.count?badge(`${scope.current.valid}/${scope.current.count} 有效`,'warning'):''}</div>`:''}<div class="table-wrap"><table class="data-table"><thead><tr>${sortHeader('path',queryNoun())}${existenceType()?'<th class="num">基线</th><th class="num">当前</th>':`${sortHeader('b',`基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}`,true)}${sortHeader('c',`当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}`,true)}`}${sortHeader('delta','变化',true)}<th>标记</th></tr></thead><tbody>${slice.length?slice.map(row=>`<tr class="${state.selected===row.id?'selected':''}"><td><button class="row-title ${row.kind==='file'||row.kind==='folder'?'mono':''}" data-action="select" data-value="${esc(row.id)}">${esc(row.kind==='file'||row.kind==='folder'?(row.path||'（扫描根）'):row.name)}</button>${row.kind==='method'?`<span class="row-subtitle mono">${esc(row.path)}</span>`:['unsafe','redundant'].includes(row.kind)?`<span class="row-subtitle mono">${esc(row.path)} : ${row.line}</span>`:row.kind==='folder'?`<span class="row-subtitle"><span class="${row.addedMembers?'up':''}">新增 ${row.addedMembers}</span> / 移出 ${row.removedMembers}</span>`:''}</td><td class="num">${row.ambiguous?`${row.beforeCount??row.before.length} 条`:existenceType()?(row.b?'有记录':'无记录'):fmt(row.b)}</td><td class="num">${row.ambiguous?`${row.afterCount??row.after.length} 条`:existenceType()?(row.c?'有记录':'无记录'):fmt(row.c)}</td><td class="num ${row.flags.includes('incomparable')?'muted':cls(row.delta)}">${existenceType()?(row.delta>0?'新增':row.delta<0?'消失':'无变化'):deltaText(row.delta)}</td><td><div class="status-list">${rowStatus(row)}</div></td></tr>`).join(''):emptyQuery(q)}</tbody></table></div>${reader?pagination(q,'page','项'):`<div class="pagination"><span>${q.total} 项</span><div class="row"><button data-action="page" data-value="-1" ${state.page<=1?'disabled':''} aria-label="上一页">←</button><span>${state.page} / ${pages}</span><button data-action="page" data-value="1" ${state.page>=pages?'disabled':''} aria-label="下一页">→</button></div></div>`}`;
+    return `<div class="scope-title"><div><small>查找范围</small><strong>${esc(q.scope||'全部目录')}${q.scope&&!state.exactFile?' / 含子目录':''}</strong></div><span class="spacer"></span></div>${state.trail.length?'<button class="text query-back" data-action="back">← 返回上次阅读位置</button>':''}${controls(q)}${key?`<div class="threshold-note">${thresholdCondition(state.type)}</div>`:''}${scope?`<div class="scope-total" title="当前目录完整数据，不受表内筛选影响${['cc','methodLines'].includes(state.type)?'；同名函数按两侧原始值各自求和':''}"><span>完整范围 · ${detailLabel}合计</span><b>${fmt(scope.baseline.value)}</b><span>→</span><b>${fmt(scope.current.value)}</b><span class="${cls(scope.delta)}">${deltaText(scope.delta)}</span>${scope.current.valid!==scope.current.count?badge(`${scope.current.valid}/${scope.current.count} 有效`,'warning'):''}</div>`:''}<div class="table-wrap"><table class="data-table"><thead><tr>${sortHeader('path',queryNoun())}${existenceType()?'<th class="num">基线</th><th class="num">当前</th>':`${sortHeader('b',`基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}`,true)}${sortHeader('c',`当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}`,true)}`}${sortHeader('delta','变化',true)}<th>标记</th></tr></thead><tbody>${slice.length?slice.map(row=>`<tr class="${state.selected===row.id?'selected':''}"><td><button class="row-title ${row.kind==='file'||row.kind==='folder'?'mono':''}" data-action="select" data-value="${esc(row.id)}">${esc(row.kind==='file'||row.kind==='folder'?(row.path||'（扫描根）'):row.name)}</button>${row.kind==='method'?`<span class="row-subtitle mono">${esc(row.path)}</span>`:['unsafe','redundant'].includes(row.kind)?`<span class="row-subtitle mono">${esc(row.path)} : ${row.line}</span>`:row.kind==='folder'?`<span class="row-subtitle"><span class="${row.addedMembers?'up':''}">新增 ${row.addedMembers}</span> / 移出 ${row.removedMembers}</span>`:''}</td><td class="num">${row.ambiguous?`${fmt(row.b)}<span class="row-subtitle">${row.beforeCount??row.before.length} 条</span>`:existenceType()?(row.b?'有记录':'无记录'):fmt(row.b)}</td><td class="num">${row.ambiguous?`${fmt(row.c)}<span class="row-subtitle">${row.afterCount??row.after.length} 条</span>`:existenceType()?(row.c?'有记录':'无记录'):fmt(row.c)}</td><td class="num ${row.flags.includes('incomparable')?'muted':cls(row.delta)}">${existenceType()?(row.delta>0?'新增':row.delta<0?'消失':'无变化'):deltaText(row.delta)}</td><td><div class="status-list">${rowStatus(row)}</div></td></tr>`).join(''):emptyQuery(q)}</tbody></table></div>${reader?pagination(q,'page','项'):`<div class="pagination"><span>${q.total} 项</span><div class="row"><button data-action="page" data-value="-1" ${state.page<=1?'disabled':''} aria-label="上一页">←</button><span>${state.page} / ${pages}</span><button data-action="page" data-value="1" ${state.page>=pages?'disabled':''} aria-label="下一页">→</button></div></div>`}`;
   }
   function positionText(path,line,side,name='') {
     return `${side}：${path}:${line}${name?`（${name}）`:''}`;
@@ -384,7 +393,26 @@
   function copyBlock(row) {
     return `<div class="copy-block"><button class="text" data-action="copy">复制定位信息</button><details ${state.locationOverride?'open':''}><summary>定位文本</summary><textarea id="location-text" readonly aria-label="定位文本">${esc(state.locationOverride||locationText(row))}</textarea></details></div>`;
   }
+  function evidenceControls(key,result,label) {
+    const control=state.evidenceControls?.[key]||{};
+    return `<input class="member-search" data-change="evidenceQuery" data-key="${key}" aria-label="搜索${label}" placeholder="搜索${label}，按 Enter" value="${esc(control.query||'')}"><div class="pagination"><span>${result.total} / ${result.scopeTotal} 项</span><div class="row"><button data-action="evidence-page" data-key="${key}" data-value="-1" ${result.page<=1?'disabled':''}>←</button><input class="page-jump" type="number" min="1" max="${result.pages||1}" value="${result.page}" data-change="evidencePage" data-key="${key}" aria-label="${label}页码"><span>/ ${result.pages}</span><button data-action="evidence-page" data-key="${key}" data-value="1" ${result.page>=result.pages?'disabled':''}>→</button></div></div>`;
+  }
+  function boundedGroupPanel(path,side) {
+    const data=snapshot.evidence?.sides?.[side];if(!data)return '<p class="notice">关联证据不可用</p>';
+    const whole=snapshot.evidence.kind==='whole';
+    return `<section class="group-side"><h3>${side==='baseline'?'基线':'当前'}</h3>${evidenceControls('groups-'+side,data.groups,'关联组')}<div class="group-tabs">${data.groups.rows.map(g=>`<button data-action="group" data-side="${side}" data-value="${esc(g.id)}" class="${g.id===data.active?'active':''}">组 ${esc(g.id)}<span>${g.total} ${whole?'成员':'片段'}</span></button>`).join('')}</div><p class="small muted">当前组：${data.active==null?'无':esc(data.active)}；组号仅在各版本内有效</p>${evidenceControls('fragments-'+side,data.members,whole?'重复组成员':'片段')}<div class="fragment-list">${data.members.rows.map(m=>`<div class="fragment ${m.path===path?'anchor':''}"><button class="row-title mono" data-action="evidence-open" data-value="${esc(m.path)}">${esc(m.path)}</button>${m.path===path?badge('当前文件','teal'):''}${whole?'':`<div class="fragment-values"><span>起始行 <b>${fmt(m.start_line)}</b></span><span>重复行 <b>${fmt(m.code_duplication)}</b></span><button class="text" data-action="fragment" data-value="${esc(positionText(m.path,m.start_line,side==='baseline'?'基线':'当前'))}">复制位置</button></div>`}</div>`).join('')||'<p class="muted">无匹配成员</p>'}</div></section>`;
+  }
+  function boundedDuplicationEvidence(row) {
+    const peers=snapshot.evidence?.peers;if(!peers)return '<p class="notice">关联证据不可用</p>';
+    return `<div class="evidence-section"><h3>关联文件（含未增长文件）</h3>${evidenceControls('peers',peers,'关联文件')}<table class="peer-table"><thead><tr><th>文件</th><th>基线重复行</th><th>当前重复行</th><th>变化</th></tr></thead><tbody>${peers.rows.map(m=>`<tr><td><button class="row-title mono" data-action="evidence-open" data-value="${esc(m.path)}">${esc(m.path)}</button></td><td>${fmt(m.b)}</td><td>${fmt(m.c)}</td><td>${deltaText(m.delta)}</td></tr>`).join('')}</tbody></table></div><div class="group-columns">${boundedGroupPanel(row.path,'baseline')}${boundedGroupPanel(row.path,'current')}</div>`;
+  }
+  function boundedFolderEvidence(row) {
+    const data=snapshot.evidence;if(!data?.members)return '<p class="notice">目录证据不可用</p>';
+    const members=data.members,{counts}=members;state.memberPage=members.page;
+    return `<div class="evidence-section"><p class="notice">仅扫描范围内恢复的直接成员；新增、移出不等同于磁盘创建、删除。</p><table><thead><tr><th>直接成员口径</th><th>基线</th><th>当前</th></tr></thead><tbody><tr><td>扫描申报数</td><td>${fmt(data.coverage.baseline.declared)}</td><td>${fmt(data.coverage.current.declared)}</td></tr><tr><td>恢复成员数</td><td>${data.coverage.baseline.recovered}</td><td>${data.coverage.current.recovered}</td></tr></tbody></table>${['baseline','current'].filter(side=>data.coverage[side].limited).map(side=>`<p class="notice">${side==='baseline'?'基线':'当前'}：扫描申报数未知或与恢复数不一致，成员覆盖受限。</p>`).join('')}<div class="member-tabs">${[['changes',`变化 ${counts.entered+counts.exited}`],['entered',`新增 ${counts.entered}`],['exited',`移出 ${counts.exited}`],['all',`全部 ${members.totalMembers}`]].map(([value,label])=>`<button data-action="member-filter" data-value="${value}" class="${state.memberStatus===value?'active':''}">${label}</button>`).join('')}</div><input class="member-search" data-change="memberQuery" aria-label="搜索直接成员" placeholder="搜索成员，按 Enter" value="${esc(state.memberQuery)}"><table><tbody>${members.rows.map(m=>`<tr><td><button class="row-title mono" data-action="member-open" data-value="${esc(m.path)}" data-kind="${m.type}">${esc(m.name)}${m.type==='目录'?'/':''}</button></td><td>${m.type}</td><td>${m.before?'✓':'—'}</td><td>${m.after?'✓':'—'}</td><td>${m.status==='entered'?'新增':m.status==='exited'?'移出':'未变'}</td></tr>`).join('')||'<tr><td>无匹配成员</td></tr>'}</tbody></table><div class="pagination"><span>${members.total} 项</span><button data-action="member-page" data-value="-1" ${members.page<=1?'disabled':''}>←</button><input class="page-jump" type="number" min="1" max="${members.pages||1}" value="${members.page}" data-change="memberPage" aria-label="直接成员页码"><span>/ ${members.pages}</span><button data-action="member-page" data-value="1" ${members.page>=members.pages?'disabled':''}>→</button></div></div>`;
+  }
   function groupPanel(path,side) {
+    if(reader)return boundedGroupPanel(path,side);
     const groups=model.sides[side].groups.filter(g=>g.members.some(m=>m.path===path));
     const active=groups.find(g=>g.id===state.groups[side])||groups[0];state.groups[side]=active?.id??null;
     return `<section class="group-side"><div class="panel-head"><h3>${side==='baseline'?'基线':'当前'}</h3><span class="muted small">${groups.length} 组</span></div>${groups.length?`<div class="group-tabs">${groups.map(g=>`<button data-action="group" data-side="${side}" data-value="${esc(g.id)}" class="${g.id===active.id?'active':''}" title="${esc(g.id)}">组 ${esc(g.id.replace(/^code_duplication_/,''))}<span>${g.members.length} 片段</span></button>`).join('')}</div><div class="fragment-list">${active.members.map(m=>{
@@ -393,11 +421,13 @@
     }).join('')}</div>`:'<div class="empty">无关联片段</div>'}</section>`;
   }
   function duplicationEvidence(row) {
+    if(reader)return boundedDuplicationEvidence(row);
     const peers=new Set();for(const side of ['baseline','current'])for(const group of model.sides[side].groups.filter(g=>g.members.some(m=>m.path===row.path)))for(const m of group.members)peers.add(m.path);
     peers.delete(row.path);
     return `<div class="evidence-section"><div class="panel-head"><h3>关联文件</h3><span class="small muted">${peers.size} 个</span></div>${peers.size?`<table class="peer-table"><thead><tr><th>文件</th><th class="num">基线重复行</th><th class="num">当前重复行</th><th class="num">变化</th></tr></thead><tbody>${[...peers].map(path=>{const before=model.sides.baseline.files[path],after=model.sides.current.files[path],b=before?before[2]:0,c=after?after[2]:0;return `<tr><td><button class="row-title mono" data-action="peer" data-value="${esc(path)}">${esc(path)}</button></td><td class="num">${fmt(b)}</td><td class="num">${fmt(c)}</td><td class="num ${cls(knownDelta(b,c))}">${deltaText(knownDelta(b,c))}</td></tr>`;}).join('')}</tbody></table>`:'<p class="muted">无其他关联文件</p>'}</div><div class="evidence-section"><div class="panel-head"><h3>重复片段</h3><span class="small muted" title="不依据组号或片段位置推断跨版本组身份">组号仅在各版本内有效</span></div><div class="group-columns">${groupPanel(row.path,'baseline')}${groupPanel(row.path,'current')}</div></div>`;
   }
   function folderEvidence(row) {
+    if(reader)return boundedFolderEvidence(row);
     const all=memberChanges(row.path),counts={entered:all.filter(m=>m.status==='entered').length,exited:all.filter(m=>m.status==='exited').length,same:all.filter(m=>m.status==='same').length};
     const filtered=all.filter(m=>(state.memberStatus==='all'||state.memberStatus==='changes'&&m.status!=='same'||m.status===state.memberStatus)&&m.name.toLowerCase().includes(state.memberQuery.toLowerCase()));
     const pages=Math.max(1,Math.ceil(filtered.length/12));state.memberPage=Math.min(state.memberPage,pages);const slice=filtered.slice((state.memberPage-1)*12,state.memberPage*12);
@@ -410,19 +440,19 @@
     if(!row)return `<div class="empty">${state.trail.length?'<p>无关联记录</p><button class="text" data-action="back">← 返回原对象</button>':'选择左侧对象'}</div>`;
     let content='';
     if(row.kind==='file') {
-      if(reader&&snapshot.evidencePending)content+='<div class="notice">关联证据尚未接入此入口；当前显示完整明细查询及两侧原值。</div>';
+      if(reader&&['duplication','sourceDuplication','dupfiles','sourceDupfiles'].includes(state.type))content+=boundedDuplicationEvidence(row);
       else if(['duplication','sourceDuplication'].includes(state.type))content+=duplicationEvidence(row);
       else if(['dupfiles','sourceDupfiles'].includes(state.type))content+=`<div class="group-columns">${['baseline','current'].map(side=>`<section class="group-side"><h3>${side==='baseline'?'基线':'当前'}</h3>${model.sides[side].dupfiles.filter(g=>g.members.includes(row.path)).map(g=>`<div class="raw-row"><span class="muted">组 ${esc(g.id)}</span>${g.members.map(path=>`<p class="mono">${esc(path)}</p>`).join('')}</div>`).join('')||'<p class="muted">无重复文件</p>'}</section>`).join('')}</div>`;
       else content+=`<div class="evidence-section"><table><thead><tr><th>指标</th><th class="num">基线</th><th class="num">当前</th></tr></thead><tbody>${['code_size','raw_lines','code_duplication_total'].map((key,i)=>`<tr><td>${metricName(key)}</td><td class="num">${row.before?fmt(row.before[i]):'—'}</td><td class="num">${row.after?fmt(row.after[i]):'—'}</td></tr>`).join('')}</tbody></table></div>`;
       content+=`<div class="file-actions">${[['cc','函数'],['duplication','重复片段'],['unsafe',metricName('unsafe_functions_total')],['redundant',metricName('redundant_code_total')],['dupfiles',metricName('file_duplication_total')]].filter(([type])=>type!==state.type).map(([type,label])=>`<button data-action="related" data-value="${type}" data-path="${esc(row.path)}">${label} ↗</button>`).join('')}</div>`;
     } else if(row.kind==='method') {
-      if(row.ambiguous)content+='<div class="notice">同文件同名，无法确定配对；不计算逐函数变化。</div>';
+      if(row.ambiguous)content+=`<div class="notice">${esc(row.warning||'同名函数可能混淆；同文件同名，无法确定配对。')} 不计算逐函数变化，不推断确定超限进出。</div>`;
       for(const [side,tag,items] of [['基线','baseline',row.before],['当前','current',row.after]]){
         const paging=reader?row.recordPages[tag]:null;
         content+=`<div class="evidence-section"><h3>${side} / ${paging?.total??items.length} 条</h3>${items.map(m=>`<div class="raw-row"><strong class="mono">${esc(m.method_name)}</strong><span class="muted"> ${m.start_line==null||m.end_line==null?'位置未知':`L${m.start_line}–${m.end_line}`}</span><p>代码行 <b>${fmt(m.nbnc_loc)}</b> / 圈复杂度 <b>${fmt(m.cyclomatic_complexity)}</b></p>${m.start_line==null?'':`<button class="text" data-action="fragment" data-value="${esc(positionText(row.path,m.start_line,side,row.name))}">复制位置</button>`}</div>`).join('')||'<p class="muted">无记录</p>'}${paging?.pages>1?`<div class="pagination"><button data-action="method-page" data-side="${tag}" data-value="-1" ${paging.page<=1?'disabled':''}>←</button><input class="page-jump" type="number" min="1" max="${paging.pages}" value="${paging.page}" data-change="methodPage" data-side="${tag}" aria-label="${side}原始记录页码"><span>/ ${paging.pages}</span><button data-action="method-page" data-side="${tag}" data-value="1" ${paging.page>=paging.pages?'disabled':''}>→</button></div>`:''}</div>`;
       }
-    } else if(row.kind==='folder')content+=reader?`<div class="evidence-section"><p class="notice">未申报的扫描原值保持未知；恢复成员数单独列出。成员明细仍在接入。</p><table><thead><tr><th>扫描可见直接成员</th><th>基线</th><th>当前</th></tr></thead><tbody><tr><td>恢复成员数</td><td>${fmt(row.recoveredBefore)}</td><td>${fmt(row.recoveredAfter)}</td></tr></tbody></table><p>新增 ${row.addedMembers} / 移出 ${row.removedMembers}</p></div>`:folderEvidence(row);
-    return `<div class="evidence"><div class="evidence-head"><div class="row between"><h2 class="object-path mono">${esc(row.kind==='method'?row.name:(row.path||'（扫描根）'))}</h2>${state.trail.length?'<button class="text" data-action="back">← 返回</button>':''}</div>${row.kind==='method'?`<p class="mono muted small">${esc(row.path)}</p>`:''}<div class="status-list">${rowStatus(row)}</div></div><div class="pair-values"><div><small>基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':existenceType()?(row.b?'有记录':'无记录'):fmt(row.b)}</strong></div><span class="pair-arrow">→</span><div><small>当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${row.ambiguous?'无法配对':existenceType()?(row.c?'有记录':'无记录'):fmt(row.c)}</strong></div><div class="pair-delta ${row.flags.includes('incomparable')?'muted':cls(row.delta)}"><small>变化</small><strong>${existenceType()?(row.delta>0?'新增':row.delta<0?'消失':'无变化'):deltaText(row.delta)}</strong></div></div>${content}${copyBlock(row)}</div>`;
+    } else if(row.kind==='folder')content+=folderEvidence(row);
+    return `<div class="evidence"><div class="evidence-head"><div class="row between"><h2 class="object-path mono">${esc(row.kind==='method'?row.name:(row.path||'（扫描根）'))}</h2>${state.trail.length?'<button class="text" data-action="back">← 返回</button>':''}</div>${row.kind==='method'?`<p class="mono muted small">${esc(row.path)}</p>`:''}<div class="status-list">${rowStatus(row)}</div></div><div class="pair-values"><div><small>基线${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${existenceType()?(row.b?'有记录':'无记录'):fmt(row.b)}</strong></div><span class="pair-arrow">→</span><div><small>当前${typeUnits[state.type]?` / ${typeUnits[state.type]}`:''}</small><strong>${existenceType()?(row.c?'有记录':'无记录'):fmt(row.c)}</strong></div><div class="pair-delta ${row.flags.includes('incomparable')?'muted':cls(row.delta)}"><small>变化</small><strong>${existenceType()?(row.delta>0?'新增':row.delta<0?'消失':'无变化'):deltaText(row.delta)}</strong></div></div>${content}${copyBlock(row)}</div>`;
   }
   function fractionObjects(side,scope,key) {
     const s=model.sides[side],[numerator,denominator]=metricFraction(key),objects=new Map(),issues=[];
@@ -456,7 +486,7 @@
     return {objects,issues};
   }
   function fractionChange(scope,key) {
-    if(reader)return null;
+    if(reader)return snapshot.impact;
     const rows=model.fileRows.filter(row=>inDirectory(row.path,scope)),sides={},sets={},issues=[];
     const [numerator,denominator]=metricFraction(key),ratio=key.endsWith('_ratio'),scale=ratio?100:1;
     const type=analysisMetrics.find(([metric])=>metric===key)[1],threshold=thresholdKey(type);
@@ -497,10 +527,10 @@
     return {...sides,observedDelta:observedIssues.length?null:knownDelta(b.value,c.value),members,issues,effects,contributions,numerator,denominator,ratio,threshold,transitions:{limited:observedIssues.length>0||transitions.some(row=>row.ambiguous||row.flags.includes('incomparable')||row.flags.includes('unknown')),entered:transitions.filter(row=>row.flags.includes('entered')).length,exited:transitions.filter(row=>row.flags.includes('exited')).length}};
   }
   function contributionTable(change,unit) {
-    const items=change.contributions,pages=Math.max(1,Math.ceil(items.length/5));state.contributionPage=Math.min(state.contributionPage,pages);
-    const shown=items.slice((state.contributionPage-1)*5,state.contributionPage*5),folder=change.denominator==='folders_total';
+    const items=change.contributions,pages=change.ranking?Math.max(1,change.ranking.pages):Math.max(1,Math.ceil(items.length/5));state.contributionPage=change.ranking?Math.max(1,change.ranking.page):Math.max(1,Math.min(state.contributionPage,pages));
+    const shown=change.ranking?items:items.slice((state.contributionPage-1)*5,state.contributionPage*5),folder=change.denominator==='folders_total';
     // 跨页使用同一标尺，条形只表达影响大小；每个对象只显示净影响值。
-    const largest=Math.abs(items[0]?.value||0),objectLabel=folder?'目录':'文件';
+    const largest=change.ranking?.maximum??Math.abs(items[0]?.value||0),objectLabel=folder?'目录':'文件';
     return `<div class="fraction-contributions">
       <div class="panel-head"><h3>${objectLabel}影响</h3><span class="small muted">+ 推高 / − 拉低</span></div>
       <div class="table-wrap"><table class="contribution-table"><thead><tr><th>${objectLabel}</th><th class="num" title="按影响绝对值从大到小排列">影响（${unit}）</th></tr></thead><tbody>${shown.length?shown.map(item=>{
@@ -508,13 +538,14 @@
         const exact=item.value===0?'正负作用相互抵消，净影响为 0':`${item.value>0?'推高':'拉低'} ${Math.abs(item.value).toLocaleString('zh-CN',{maximumSignificantDigits:10})} ${unit}`;
         return `<tr><td><button class="row-title mono" data-action="contributor" data-kind="${folder?'folder':'file'}" data-value="${esc(item.path)}" title="${esc(item.path||'项目根目录')}">${esc(item.path||'项目根目录')}</button></td><td class="num" title="${esc(exact)}"><div class="impact-value"><span class="impact-track" aria-hidden="true">${item.value!==0?`<i class="${item.value>0?'positive':'negative'}" style="width:${width}%"></i>`:''}</span><strong class="${cls(item.value)}">${deltaText(item.value,true)}</strong></div></td></tr>`;
       }).join(''):`<tr><td colspan="2" class="empty">无影响项</td></tr>`}</tbody></table></div>
-      <div class="pagination"><span>${items.length} 个${objectLabel} · 按影响大小排序</span>${pages>1?`<div class="row"><button data-action="contribution-page" data-value="-1" ${state.contributionPage===1?'disabled':''} aria-label="影响上一页">←</button><span>${state.contributionPage} / ${pages}</span><button data-action="contribution-page" data-value="1" ${state.contributionPage===pages?'disabled':''} aria-label="影响下一页">→</button></div>`:''}</div>
+      <div class="pagination"><span>${change.ranking?.total??items.length} 个${objectLabel} · 按影响大小排序</span>${pages>1?`<div class="row"><button data-action="contribution-page" data-value="-1" ${state.contributionPage===1?'disabled':''} aria-label="影响上一页">←</button><span>${state.contributionPage} / ${pages}</span><button data-action="contribution-page" data-value="1" ${state.contributionPage===pages?'disabled':''} aria-label="影响下一页">→</button></div>`:''}</div>
     </div>`;
   }
   function metricExplanation() {
-    if(reader)return metricFraction(state.metric)?'<section class="panel notice">指标净影响尚未接入；全报告汇总如下，目录影响排名将在后续阶段提供。</section>':'';
     if(!metricFraction(state.metric))return '';
-    const scope=state.searchScope==='all'?'':state.directory,change=fractionChange(scope,state.metric),b=change.baseline,c=change.current;
+    const scope=state.searchScope==='all'?'':state.directory,change=fractionChange(scope,state.metric);
+    if(!change)return '<section class="panel notice">指标净影响暂不可用。</section>';
+    const b=change.baseline,c=change.current;
     const unit=change.ratio?'个百分点':state.metric==='cyclomatic_complexity_per_method'?'复杂度 / 函数':state.metric==='lines_per_method'?'行 / 函数':'行 / 文件',t=change.transitions;
     const numeratorLabel=metricName(change.numerator),denominatorLabel=metricName(change.denominator);
     const numeratorUnit=['code_size','method_lines','code_duplication_total','non_hfile_code_duplication_total'].includes(change.numerator)?'行':change.numerator==='cyclomatic_complexity_total'?'复杂度':'个';
@@ -566,7 +597,7 @@
     document.documentElement.classList.add('interactive-ready');document.title='Cmetrics / 代码变化';
     console.info('[prototype state]',structuredClone(state));
   }
-  function resetEvidence(){state.methodPages={baseline:1,current:1};state.locationOverride=null;state.groups={baseline:null,current:null};state.memberStatus='changes';state.memberQuery='';state.memberPage=1;}
+  function resetEvidence(){state.evidenceControls={};state.methodPages={baseline:1,current:1};state.locationOverride=null;state.groups={baseline:null,current:null};state.memberStatus='changes';state.memberQuery='';state.memberPage=1;}
   function resetQuery(){Object.assign(state,{query:'',status:'changes',sort:'delta:desc',numberFilter:null,numberEditor:false,searchScope:'directory',page:1,selected:null,exactFile:null,contributionPage:1,directoryPage:1});resetEvidence();}
   function refreshQuery(){state.page=1;state.selected=null;resetEvidence();selectInitial();safeRender();}
   function selectInitial(){if(reader)return;const rows=queriedRows().rows;state.selected=(rows.find(r=>r.path==='src/core/parser.c'&&!r.ambiguous)||rows[0])?.id??null;}
@@ -612,6 +643,11 @@
         const next=await reader.read(requestedState);
         if(request!==generation)return;
         snapshot=next;model=next.model;state.selected=next.selected;
+        if(next.evidence?.sides){
+          state.groups??={};state.evidenceControls??={};
+          for(const side of ['baseline','current']){const data=next.evidence.sides[side];state.groups[side]=data.active;for(const [prefix,paging] of [['groups',data.groups],['fragments',data.members]]){const key=prefix+'-'+side;state.evidenceControls[key]={...state.evidenceControls[key],page:paging.page||1};}}
+          state.evidenceControls.peers={...state.evidenceControls.peers,page:next.evidence.peers.page||1};
+        }
         const records=next.query.rows.find(row=>row.id===next.selected)?.recordPages;
         if(records)state.methodPages={baseline:records.baseline.page,current:records.current.page};
         state.page=next.query.page;state.chartPage=next.overview.chart.page;state.directoryPage=next.directories.page;
@@ -625,7 +661,7 @@
     })();
   }
   function toast(text){$('#toast').textContent=text;$('#toast').classList.add('visible');setTimeout(()=>$('#toast').classList.remove('visible'),2200);}
-  async function copy(text){try{await navigator.clipboard.writeText(text);toast('已复制');}catch{const area=$('#location-text');if(area){area.closest('details').open=true;area.focus();area.select();}toast('请按 Ctrl/Cmd+C 复制');}}
+  async function copy(text){try{await navigator.clipboard.writeText(text);toast('已复制');}catch{const area=$('#location-text');if(area){area.value=text;area.closest('details').open=true;area.focus();area.select();}toast('请按 Ctrl/Cmd+C 复制');}}
   function fail(error){console.error(error);document.documentElement.classList.remove('interactive-ready');$('#app').innerHTML='';$('#init-status').textContent=`交互不可用，仅显示静态概览。${error.message}`;}
   document.addEventListener('click',async event=>{
     const target=event.target.closest('[data-action]');if(!target)return;const action=target.dataset.action,value=target.dataset.value;
@@ -637,7 +673,9 @@
     if(action==='chart-page'||action==='directory-page'){state[action==='chart-page'?'chartPage':'directoryPage']+=Number(value);safeRender();return;}
     if(action==='copy'){await copy($('#location-text').value);return;}
     if(action==='fragment'){state.locationOverride=value;safeRender();await copy(value);return;}
-    if(action==='group'){state.groups[target.dataset.side]=value;state.locationOverride=null;safeRender();return;}
+    if(action==='group'){state.groups[target.dataset.side]=value;if(state.evidenceControls)delete state.evidenceControls['fragments-'+target.dataset.side];state.locationOverride=null;safeRender();return;}
+    if(action==='evidence-open'){const type=isHeader(value)?({sourceDuplication:'duplication',sourceDupfiles:'dupfiles'}[state.type]||state.type):state.type;openFile(value,type,true);safeRender();return;}
+    if(action==='evidence-page'){const key=target.dataset.key;state.evidenceControls??={};const control=state.evidenceControls[key]??={query:'',page:1};control.page+=Number(value);safeRender();return;}
     if(action==='method-page'){state.methodPages[target.dataset.side]+=Number(value);state.locationOverride=null;safeRender();return;}
     if(action==='contribution-page'){state.contributionPage+=Number(value);safeRender();return;}
     if(action==='member-filter'){state.memberStatus=value;state.memberPage=1;safeRender();return;}
@@ -665,7 +703,7 @@
     if(action==='contributor'){
       remember();resetQuery();state.status='all';
       if(target.dataset.kind==='folder'){selectMetric('code_size');state.directory=value;}
-      else{if(!rowsFor(state.type).some(row=>row.path===value))selectMetric('code_size');state.directory='';state.query=value;state.exactFile=value;state.searchScope='all';}
+      else{if(reader||!rowsFor(state.type).some(row=>row.path===value))selectMetric('code_size');state.directory='';state.query=value;state.exactFile=value;state.searchScope='all';}
       selectInitial();syncURL();
     }
     if(action==='directory'){remember();if(state.view!=='workspace')selectMetric('code_size');state.directory=value;state.view='workspace';resetQuery();selectInitial();syncURL();}
@@ -687,6 +725,8 @@
   });
   document.addEventListener('change',event=>{
     const key=event.target.dataset.change;if(!key)return;
+    if(key==='memberPage'){state.memberPage=Math.max(1,Math.trunc(Number(event.target.value)||1));safeRender();return;}
+    if(key==='evidenceQuery'||key==='evidencePage'){const field=event.target.dataset.key;state.evidenceControls??={};const control=state.evidenceControls[field]??={query:'',page:1};if(key==='evidenceQuery'){control.query=event.target.value;control.page=1;}else control.page=Math.max(1,Math.trunc(Number(event.target.value)||1));safeRender();return;}
     if(key==='methodPage'){state.methodPages[event.target.dataset.side]=Math.max(1,Math.trunc(Number(event.target.value)||1));state.locationOverride=null;safeRender();return;}
     if(key==='pageJump'){
       const field=event.target.dataset.pageKey;

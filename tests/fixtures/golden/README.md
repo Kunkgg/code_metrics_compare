@@ -24,8 +24,8 @@
 
 每组保留 baseline/current、固定业务 expected 和原型 manifest。所有业务浮点输出按十进制 Half-Up 四舍五入至两位，不截断；内部计算、分类和排序继续保留未舍入分子／分母。业务预期不由被测实现运行时生成。
 
-运行 `uv run pytest tests/test_golden.py -q`，通过 Node.js 执行参考 UI 的真实业务查询。414 项业务断言中，400 项通过、14 项为已知实现差距。后者按具体断言设置 `strict xfail`，同时锁定预期与实际的失败形态；新回归照常失败，原差距修复后会严格报 XPASS，提醒移除过期标记。登记在 [business_known_gaps.json](../../business_known_gaps.json)，对应 [阶段 2 工作项](../../../.scratch/unified-prototype/issues/03-detail-queries.md)。数据批准不等于实现验收。
+运行 `uv run pytest tests/test_golden.py -q`，通过 Node.js 执行参考 UI 的真实业务查询。414 项业务断言中，413 项通过；原登记的 14 条实现差距已修复，`business_known_gaps.json` 的失败清单已清空。剩余 `threshold-change / hugeMethod all` 的已批准预期仍按名称排列两条跨文件函数，与 `path:asc` 路径优先规范冲突。保留真实失败，等待人工确认后修订预期和审核摘要，不通过特殊化排序或增加 xfail 消除冲突。对应 [阶段 2 工作项](../../../.scratch/unified-prototype/issues/03-detail-queries.md)。数据批准不等于实现验收。
 
-仅逐项业务断言使用预期失败；审核元信息、批准输入摘要和业务预期摘要仍独立验证。该入口不执行浏览器渲染、完整 Worker 分页或性能验收。Worker 根目录路径、未申报侧目录原值，以及关联证据分页等仍需后续接入。
+仅逐项业务断言使用预期失败；审核元信息、批准输入摘要和业务预期摘要仍独立验证。该入口不执行浏览器渲染或性能验收。紧凑 Worker 由 `scripts/prototype_checks/check-worker-business.cjs` 逐页核验，目录扫描申报值与恢复成员数分别保留；净影响和关联证据由独立原型检查覆盖。
 
-新建或修改业务输入／预期时，须按实际变更记录人工确认范围，再纳入正式 golden；自动测试不能代为批准。统一原型主任务及大型性能验收继续暂停。
+新建或修改业务输入／预期时，须按实际变更记录人工确认范围，再纳入正式 golden；自动测试不能代为批准。统一原型已恢复小规模功能验证；大型性能验收在全部功能之后执行。

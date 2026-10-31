@@ -30,7 +30,8 @@
   assert(state().page===pages&&rowCount()===metadata.unionFiles-(pages-1)*10,'末页缺失');
   const before=state(),fields=['view','type','metric','directory','query','exactFile','status','sort','page','selected','numberFilter'];
   await click('.evidence-panel [data-action="related"][data-value="cc"]');
-  assert(document.querySelector('.table-panel').textContent.includes('尚未接入'),'未完成类型未明确显示状态');
+  assert(!document.querySelector('.table-panel').textContent.includes('尚未接入'),'函数明细仍未接入');
+  assert(document.querySelectorAll('.data-table [data-action="select"]').length<=10,'函数明细响应超出当前页');
   assert(state().exactFile===before.selected.slice('file:'.length),'关联下钻没有使用精确文件');
   await click('.table-panel [data-action="back"]');
   assert(fields.every(field=>JSON.stringify(state()[field])===JSON.stringify(before[field])),'返回未恢复原阅读位置');

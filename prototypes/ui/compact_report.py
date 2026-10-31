@@ -53,6 +53,9 @@ def build_compact_report(
     directory = Path(__file__).parent
     worker = (directory.parent / "performance" / "large_worker.js").read_text(encoding="utf-8")
     worker += "\n" + (directory / "ui_queries.js").read_text(encoding="utf-8")
+    worker += "\n" + (directory / "ui_impact.js").read_text(encoding="utf-8")
+    if (directory / "ui_evidence.js").exists():
+        worker += "\n" + (directory / "ui_evidence.js").read_text(encoding="utf-8")
     worker += "\n" + (directory / "ui_worker.js").read_text(encoding="utf-8")
     script = (directory / "query_reader.js").read_text(encoding="utf-8")
     script += "\n" + (directory / "prototype.js").read_text(encoding="utf-8")

@@ -78,8 +78,10 @@ const {loadWorker}=require('./worker-harness.cjs');
     const expected=files.filter(r=>(r.delta>0?'growth':r.delta<0?'decrease':'unchanged')===direction).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)||text(a.path,b.path));
     check('overview.'+direction,{total:expected.length,paths:expected.slice(0,8).map(r=>r.path)},{total:overview.files[direction].total,paths:overview.files[direction].rows.map(r=>r.path)});
   }
-  const unsupported=await read({type:'cc',metric:'cyclomatic_complexity_per_method'});
-  check('unsupported-is-explicit',true,!!unsupported.unavailable&&unsupported.query.total===null&&unsupported.query.rows.length===0);
+  const functions=await read({type:'cc',metric:'cyclomatic_complexity_per_method',pageSize:1});
+  const identities=new Set(Object.values(reports).flatMap(report=>report.detail_metrics.method_metrics.slice(0,-1).map(m=>JSON.stringify([relative(m.file_name),m.method_name]))));
+  check('functions-available',identities.size,functions.query.total);
+  check('functions-bounded',Math.min(1,identities.size),functions.query.rows.length);
   const failed=checks.filter(c=>!c.pass).length;
   console.log(JSON.stringify({protocol:'unified-files-1',workerSha256:crypto.createHash('sha256').update(source).digest('hex'),checks:checks.length,failed,results:checks},null,2));
   process.exitCode=failed?1:0;

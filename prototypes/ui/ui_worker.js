@@ -128,14 +128,17 @@ function uiSnapshot(state) {
     const summary=context.summaries[side];
     sides[side]={summary,report:{summary_metrics:summary,detail_metrics:{method_metrics:[S.meta.maxima[side]]}},files:{},methods:[],groups:[],dupfiles:[],folders:{},positions:[]};
   }
+  const evidence=typeof uiEvidence==='function'?uiEvidence(state,query.rows.find(row=>row.id===(state.selected??query.rows[0]?.id))??query.rows[0]):null;
   return {
+    impact:uiImpact(state),
+    evidence,
     model:{sides,fileRows:query.rows,methodRows:[],folderRows:[],dirs:[],limited:state.scenario==='limited'},
     transitions:uiTransitions(),
     ambiguityCount:S.meta.ambiguousMethodCount,
     overview,directories,query,
     selected:query.rows.find(row=>row.id===state.selected)?.id??query.rows[0]?.id??null,
     unavailable:null,
-    evidencePending:['duplication','sourceDuplication','dupfiles','sourceDupfiles','folders'].includes(state.type),
+    evidencePending:!evidence,
   };
 }
 

@@ -40,7 +40,7 @@ uv run pytest
 - `output/`：生成数据、报告、截图和临时验证产物，继续由 Git 忽略。
 - 根目录 `AGENTS.md`、`GLOSSARY.md`：项目级 Agent 规范与领域术语。
 
-Golden Dataset 只验证对比业务逻辑，包含基线输入、当前输入和人工确认的预期输出。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [`tests/fixtures/golden/`](tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见保留在 [原始审核意见](tests/fixtures/golden/review-issues.md)。由 `uv run pytest tests/test_golden.py -q` 执行业务查询。当前参考 UI 的 414 项业务断言中，400 项通过，14 项为函数排序、同名聚合计数的真实实现差距；后续按具体断言设置 `strict xfail` 并锁定失败形态，不将其记为数据审核未通过。统一原型继续暂停，本轮不修实现、不启动大规模测试；后续计划另行调整，本轮不重写已有阶段计划。Schema、公式、内容证据与校验器负例移入 [`tests/fixtures/validation/`](tests/fixtures/validation/README.md)，由独立测试执行。早期 `init_requirements.md`、`sample.json` 已从工作树移除，历史版本可用 `git show d1ebe80:文件名` 查阅。
+Golden Dataset 只验证对比业务逻辑，包含基线输入、当前输入和人工确认的预期输出。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [`tests/fixtures/golden/`](tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见保留在 [原始审核意见](tests/fixtures/golden/review-issues.md)。由 `uv run pytest tests/test_golden.py -q` 执行业务查询。当前参考 UI 的 414 项业务断言中，413 项通过；原 14 条函数排序、同名聚合及计数差距已修复并清空过期 xfail。剩余 `threshold-change / hugeMethod all` 是已批准排序预期与路径优先规范的冲突，保留真实失败，等待人工确认修订范围。统一原型已恢复，先完成全部指标、净影响及关联证据的小规模功能和测量，再统一进行大规模性能验收。Schema、公式、内容证据与校验器负例移入 [`tests/fixtures/validation/`](tests/fixtures/validation/README.md)，由独立测试执行。早期 `init_requirements.md`、`sample.json` 已从工作树移除，历史版本可用 `git show d1ebe80:文件名` 查阅。
 
 下列命令均在仓库根目录执行。
 
@@ -84,7 +84,17 @@ uv run python -m prototypes.ui.prototype --open
 uv run python -m prototypes.ui.prototype --seed 42 --output-dir output/prototype-42
 ```
 
-源码位于 `prototypes/ui/`，包含 `prototype.py`、`prototype_data.py` 与 HTML/CSS/JS。“全部指标分组与阈值展示”见 [第十一轮记录](.scratch/report-ui-prototype/issues/11-all-metrics-groups.md)，“概览分类与显示切换”见 [第十轮记录](.scratch/report-ui-prototype/issues/10-overview-directions.md)，“指标变化”合并与单一影响值见 [第九轮记录](.scratch/report-ui-prototype/issues/09-single-impact.md)，“无变化”口径与文案精简见 [第八轮记录](.scratch/report-ui-prototype/issues/08-metric-only-changes.md)，筛选排序见 [第七轮记录](.scratch/report-ui-prototype/issues/07-task-filters.md)，定位文本见 [第六轮记录](.scratch/report-ui-prototype/issues/06-simple-location.md)，均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
+源码位于 `prototypes/ui/`，包含 `prototype.py`、`prototype_data.py` 与 HTML/CSS/JS。
+
+统一原型继续复用以上三页，以紧凑数据和 Blob Worker 执行完整范围查询，一条命令生成小规模可操作报告：
+
+```bash
+uv run python -m prototypes.ui.prototype --compact --output-dir output/unified-prototype/preview --open
+```
+
+本轮验证记录见 [统一原型规格](.scratch/unified-prototype/spec.md) 和 [明细查询](.scratch/unified-prototype/issues/03-detail-queries.md)。所有明细及证据保留，浏览器只接收当前页；本机 Chrome 小规模结果不代表 100k／1m、Windows 或 Edge 验收。
+
+“全部指标分组与阈值展示”见 [第十一轮记录](.scratch/report-ui-prototype/issues/11-all-metrics-groups.md)，“概览分类与显示切换”见 [第十轮记录](.scratch/report-ui-prototype/issues/10-overview-directions.md)，“指标变化”合并与单一影响值见 [第九轮记录](.scratch/report-ui-prototype/issues/09-single-impact.md)，“无变化”口径与文案精简见 [第八轮记录](.scratch/report-ui-prototype/issues/08-metric-only-changes.md)，筛选排序见 [第七轮记录](.scratch/report-ui-prototype/issues/07-task-filters.md)，定位文本见 [第六轮记录](.scratch/report-ui-prototype/issues/06-simple-location.md)，均值/比例与对象贡献见 [第五轮记录](.scratch/report-ui-prototype/issues/05-average-file-explanation.md)，20 项分析入口见 [第四轮记录](.scratch/report-ui-prototype/issues/04-analysis-metric-list.md)，显示规则见 [第三轮记录](.scratch/report-ui-prototype/issues/03-format-and-metric-navigation.md)；布局合并见 [第二轮记录](.scratch/report-ui-prototype/issues/02-combined-data-first.md)，首轮比较见 [历史记录](.scratch/report-ui-prototype/issues/01-ui-comparison.md)。当前仍是一次性原型，不直接产品化。
 
 ## 大数据容量验证原型（每侧 10 万文件 / 100 万函数）
 
