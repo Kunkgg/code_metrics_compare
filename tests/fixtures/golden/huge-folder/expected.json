@@ -1,0 +1,250 @@
+{
+  "review_status": "approved",
+  "description": "目录阈值2，直接成员2→3新增超限、3→2退出、3→4增长、4→3减少、3→3不变。根目录直接包含5个子目录，也超限且不变。unchanged目录成员unit_0移出、unit_3进入，数量仍为3。这里的申报数量与恢复成员始终一致，替代原有folder-coverage负例作为业务候选。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "db1b4e54a56c8f301ef2e245619bf9a22ddf130a5ea8c7bda704b3cf9a383f4c",
+      "current": "6eab5915283b4ea85689a2c559d6225d35e940b4760642d88be7196f21630f8f"
+    },
+    "business_sha256": "61f58f094567e7fe1677a8b1950a28923e9fded8670066168dafd8bc8bcae02a"
+  },
+  "summary_comparison": {
+    "huge_folder_total": {
+      "b": 5,
+      "c": 5,
+      "delta": 0.0
+    },
+    "huge_folder_ratio": {
+      "b": 83.33,
+      "c": 83.33,
+      "delta": 0.0
+    },
+    "folders_total": {
+      "b": 6,
+      "c": 6,
+      "delta": 0.0
+    },
+    "files_total": {
+      "b": 15,
+      "c": 15,
+      "delta": 0.0
+    }
+  },
+  "queries": [
+    {
+      "name": "folders all",
+      "state": {
+        "type": "folders",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "",
+          5,
+          5,
+          0
+        ],
+        [
+          "decrease",
+          4,
+          3,
+          -1
+        ],
+        [
+          "entered",
+          2,
+          3,
+          1
+        ],
+        [
+          "exited",
+          3,
+          2,
+          -1
+        ],
+        [
+          "growth",
+          3,
+          4,
+          1
+        ],
+        [
+          "unchanged",
+          3,
+          3,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "folders entered",
+      "state": {
+        "type": "folders",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "entered",
+          2,
+          3,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "folders exited",
+      "state": {
+        "type": "folders",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "exited",
+          3,
+          2,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "folders growth",
+      "state": {
+        "type": "folders",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "entered",
+          2,
+          3,
+          1
+        ],
+        [
+          "growth",
+          3,
+          4,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "folders decrease",
+      "state": {
+        "type": "folders",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "decrease",
+          4,
+          3,
+          -1
+        ],
+        [
+          "exited",
+          3,
+          2,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "folders unchanged",
+      "state": {
+        "type": "folders",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "",
+          5,
+          5,
+          0
+        ],
+        [
+          "unchanged",
+          3,
+          3,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "直接成员数不变但成员替换",
+      "state": {
+        "type": "folders",
+        "status": "all",
+        "query": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta",
+        "addedMembers",
+        "removedMembers"
+      ],
+      "rows": [
+        [
+          "unchanged",
+          3,
+          3,
+          0,
+          1,
+          1
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "folders": [
+      "entered",
+      "exited",
+      "growth",
+      "decrease",
+      "unchanged"
+    ],
+    "member_replacement": "直接成员数不变仍可查看成员进出",
+    "root": "空字符串代表扫描根"
+  }
+}

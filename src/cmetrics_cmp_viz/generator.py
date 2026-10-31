@@ -198,8 +198,8 @@ class MockDataGenerator:
             if len(frags) >= 2:
                 code_duplication[g_name] = frags
 
-        # 5. 生成整文件重复组
-        duplication_files: dict[str, list[str]] = {}
+        # 5. 模拟整文件重复组（仅标记覆盖，不生成内容或 MD5，不保证内容相同）
+        file_duplication: dict[str, list[str]] = {}
         for fg_idx in range(cfg.num_file_dup_groups):
             # 挑选文件并将整个文件的所有有效行标记为重复行 (d_f == n_f)
             candidates = [p for p, fm in file_models.items() if fm.valid_lines]
@@ -209,7 +209,7 @@ class MockDataGenerator:
             for fpath in chosen:
                 fm = file_models[fpath]
                 fm.dup_lines_union.update(fm.valid_lines)
-            duplication_files[f"{fg_idx + 1}"] = chosen
+            file_duplication[f"{fg_idx + 1}"] = chosen
 
         # 6. 生成危险函数
         unsafe_functions: dict[str, dict[str, list[int]]] = {}
@@ -326,7 +326,7 @@ class MockDataGenerator:
         calc_huge_folder = len(huge_folders)
 
         all_dup_file_paths: set[str] = set()
-        for fl in duplication_files.values():
+        for fl in file_duplication.values():
             all_dup_file_paths.update(fl)
         calc_dup_files_total = len(all_dup_file_paths)
         calc_non_h_dup_files = sum(1 for p in all_dup_file_paths if is_source_file(p))
@@ -395,7 +395,7 @@ class MockDataGenerator:
             "file_sizes": file_sizes,
             "method_metrics": method_metrics,
             "code_duplication": code_duplication,
-            "duplication_files": duplication_files,
+            "file_duplication": file_duplication,
             "unsafe_functions": unsafe_functions,
             "redundant_code": redundant_code,
             "huge_folders": huge_folders,

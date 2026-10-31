@@ -1,0 +1,245 @@
+{
+  "review_status": "approved",
+  "description": "冗余代码按原始条目比较且保留重数：10行一条消失、20行从2条减为1条、40行新增2条，30行保留。总块数4不变，不能因此隐藏进出；相同起始行不证明块具有稳定身份。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "941cd3d0b49e790bc4b92552071952cc1e998cdbdf5c10665df7e0ce9b535c78",
+      "current": "746a110228a41c6da58fcdaa6d38741f144a3c2d7b2765a84c1239a561ee4c47"
+    },
+    "business_sha256": "77949ca816d954efeacc31daa47fd668c34108982542d889c76b9982b5e46505"
+  },
+  "summary_comparison": {
+    "redundant_code_total": {
+      "b": 4,
+      "c": 4,
+      "delta": 0.0
+    },
+    "redundant_code_kloc": {
+      "b": 4,
+      "c": 4,
+      "delta": 0.0
+    }
+  },
+  "queries": [
+    {
+      "name": "redundant all",
+      "state": {
+        "type": "redundant",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "line",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          10,
+          1,
+          0,
+          -1
+        ],
+        [
+          "src/a.c",
+          20,
+          1,
+          1,
+          0
+        ],
+        [
+          "src/a.c",
+          20,
+          1,
+          0,
+          -1
+        ],
+        [
+          "src/a.c",
+          30,
+          1,
+          1,
+          0
+        ],
+        [
+          "src/a.c",
+          40,
+          0,
+          1,
+          1
+        ],
+        [
+          "src/a.c",
+          40,
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "redundant entered",
+      "state": {
+        "type": "redundant",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "line",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          40,
+          0,
+          1,
+          1
+        ],
+        [
+          "src/a.c",
+          40,
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "redundant exited",
+      "state": {
+        "type": "redundant",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "line",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          10,
+          1,
+          0,
+          -1
+        ],
+        [
+          "src/a.c",
+          20,
+          1,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "redundant growth",
+      "state": {
+        "type": "redundant",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "line",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          40,
+          0,
+          1,
+          1
+        ],
+        [
+          "src/a.c",
+          40,
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "redundant decrease",
+      "state": {
+        "type": "redundant",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "line",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          10,
+          1,
+          0,
+          -1
+        ],
+        [
+          "src/a.c",
+          20,
+          1,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "redundant unchanged",
+      "state": {
+        "type": "redundant",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "line",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          20,
+          1,
+          1,
+          0
+        ],
+        [
+          "src/a.c",
+          30,
+          1,
+          1,
+          0
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "redundant": [
+      "entered",
+      "exited",
+      "unchanged"
+    ],
+    "multiplicity": "20行退出一条，40行新增两条，不按集合去重"
+  }
+}

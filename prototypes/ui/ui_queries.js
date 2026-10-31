@@ -142,7 +142,8 @@ function uiSource(type){
       entered=transitionKnown&&!(b>limits.b)&&c>limits.c;exited=transitionKnown&&b>limits.b&&!(c>limits.c);
     }
     const mismatch=type==='folders'&&(uiContext.limitedFolder===i||S.dirs[i].kB!=null&&S.dirs[i].kB!==uiMembers(S.dirs[i]).b||S.dirs[i].kC!=null&&S.dirs[i].kC!==uiMembers(S.dirs[i]).c);
-    const incomparable=!!limits&&(limits.b!==limits.c||!Number.isFinite(limits.b)||!Number.isFinite(limits.c)||mismatch);
+    const incomparable=!!limits&&(!Number.isFinite(limits.b)||!Number.isFinite(limits.c)||mismatch);
+    if(type==='folders'&&!incomparable){const members=uiMembers(S.dirs[i]);entered=!(members.b>limits.b)&&members.c>limits.c;exited=members.b>limits.b&&!(members.c>limits.c);}
     if(incomparable)transitionKnown=false;
     if(ambiguous)flags.push('ambiguous');else if(b==null||c==null)flags.push('unknown');
     if(incomparable)flags.push('incomparable');
@@ -150,7 +151,8 @@ function uiSource(type){
     if(!incomparable&&delta>0)flags.push('growth');if(!incomparable&&delta<0)flags.push('decrease');
     if(entered&&transitionKnown)flags.push('entered');if(exited&&transitionKnown)flags.push('exited');
     const objectPath=path(i),objectName=name(i),kind=file?'file':method?'method':position?type:'folder';
-    const result={kind,path:objectPath,name:objectName,b,c,delta,flags,changed:delta!==0||incomparable,ambiguous,transitionKnown};
+    const thresholdChanged=!!limits&&Number.isFinite(limits.b)&&Number.isFinite(limits.c)&&limits.b!==limits.c;
+    const result={thresholdChanged,warning:thresholdChanged?'阈值变化；两侧分别按各自阈值严格大于判定，清单进出不证明代码恶化或改善。':null,kind,path:objectPath,name:objectName,b,c,delta,flags,changed:delta!==0||thresholdChanged&&transitionKnown&&(entered||exited)||incomparable,ambiguous,transitionKnown};
     if(method){result.beforeCount=m.bCount[i];result.afterCount=m.cCount[i];}
     if(position)result.line=p[i].line;
     return result;
@@ -196,7 +198,7 @@ function uiMatchesStatus(row,status){
   if(status==='all')return true;
   if(status==='changes')return row.changed;
   if(status==='exceptions')return uiException(row);
-  if(status==='unchanged')return row.delta===0&&!uiException(row);
+  if(status==='unchanged')return row.delta===0&&!(row.thresholdChanged&&(row.flags.includes('entered')||row.flags.includes('exited')))&&!uiException(row);
   return row.flags.includes(status)&&(!['entered','exited'].includes(status)||row.transitionKnown);
 }
 

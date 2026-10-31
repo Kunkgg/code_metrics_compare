@@ -1,0 +1,9 @@
+{
+  "root": "/golden/project",
+  "config": {
+    "seed": 0,
+    "fixture": "summary-conflict"
+  },
+  "unionFiles": 5,
+  "validation": "见 expected.json；异常夹具不得作为正常数据使用"
+}

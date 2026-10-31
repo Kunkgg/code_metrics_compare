@@ -70,6 +70,35 @@ def load_metric_names() -> dict[str, str]:
     return names
 
 
+THRESHOLD_KEYS = {
+    "hugeHeader": "huge_headerfile",
+    "hugeSource": "huge_non_headerfile",
+    "hugeMethod": "huge_method",
+    "hugeCC": "huge_cyclomatic_complexity",
+    "folders": "huge_folder",
+}
+
+
+def threshold_comparison(
+    before: dict[str, Any], after: dict[str, Any], kind: str
+) -> dict[str, Any]:
+    """阈值变化是观测比较的提示，不是停用详情的原因。"""
+    key = THRESHOLD_KEYS[kind]
+    b, c = before["huge_threshold"][key], after["huge_threshold"][key]
+    changed = b != c
+    return {
+        "thresholdChanged": changed,
+        "baselineThreshold": b,
+        "currentThreshold": c,
+        "warning": (
+            f"阈值变化：基线 > {b}；当前 > {c}。两侧分别严格大于判定；"
+            "清单进出可能由阈值变化造成，不证明代码恶化或改善。"
+            if changed
+            else None
+        ),
+    }
+
+
 def threshold_transitions(baseline: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
     """按真实超限对象集合计数；任一侧重名的函数键不参与进出判定。"""
     ambiguous = set()
@@ -134,6 +163,7 @@ def threshold_transitions(baseline: dict[str, Any], current: dict[str, Any]) -> 
             "entered": len(after[kind] - before[kind]),
             "exited": len(before[kind] - after[kind]),
             "limited": limited.get(kind, False),
+            **threshold_comparison(baseline["summary_metrics"], current["summary_metrics"], kind),
         }
         for kind in before
     }
@@ -211,7 +241,7 @@ def prepare_data(seed: int) -> tuple[dict[str, Any], dict[str, str]]:
                 "field": "summary_metrics.huge_threshold.huge_cyclomatic_complexity",
                 "old": 20,
                 "value": 25,
-                "label": "仅异常展示：阈值改变，应按新阈值派生清单并标不可直接比较",
+                "label": "阈值变化：两侧按各自阈值比较数值与清单进出，不证明代码恶化或改善",
             },
             {
                 "id": "folder-coverage",
@@ -280,6 +310,8 @@ def static_overview(data: dict[str, Any]) -> str:
                 f'<strong class="up">新增 {transition["entered"]}</strong> / '
                 f'<strong class="down">退出 {transition["exited"]}</strong>'
             )
+        if transition and transition.get("warning"):
+            movement += f'<p class="notice">{html.escape(transition["warning"])}</p>'
         rows.append(f"<tr>{cells}<td>{movement}</td></tr>")
     limits = "".join(
         f"<li>{html.escape(item)}</li>" for item in data["meta"].get("limitations", LIMITATIONS)

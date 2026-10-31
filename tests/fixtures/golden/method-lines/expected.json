@@ -1,0 +1,459 @@
+{
+  "review_status": "approved",
+  "description": "函数有效行数独立候选：新增、退出、增长、减少、不变及指标隔离。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "7cf487c1d2888c5655e4d4e50a72faa3af2e49123aba10b9d6af23040870778f",
+      "current": "e38ca0567b188809971665293aca9b9d86470f4ebf2977ba0b36fca70d4ba3ea"
+    },
+    "business_sha256": "dc7bd7cab4c94222b79dee24eb32dbf2e855e7a8b1baeccfbb0f58fe7af00938"
+  },
+  "summary_comparison": {
+    "methods_total": {
+      "b": 9,
+      "c": 8,
+      "delta": -1
+    },
+    "method_lines": {
+      "b": 260,
+      "c": 244,
+      "delta": -16
+    },
+    "lines_per_method": {
+      "b": 28.89,
+      "c": 30.5,
+      "delta": 1.61
+    },
+    "maximum_nbnc_loc": {
+      "b": 60,
+      "c": 51,
+      "delta": -9
+    },
+    "huge_method_total": {
+      "b": 1,
+      "c": 1,
+      "delta": 0
+    },
+    "huge_method_ratio": {
+      "b": 11.11,
+      "c": 12.5,
+      "delta": 1.39
+    }
+  },
+  "queries": [
+    {
+      "name": "完整业务列表（默认 path:asc，同路径 name:asc）",
+      "state": {
+        "type": "methodLines",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta",
+        "ambiguous",
+        "beforeCount",
+        "afterCount",
+        "comparisonBasis",
+        "warning"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "cross_enter",
+          50,
+          51,
+          1,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "cross_exit_equal",
+          60,
+          50,
+          -10,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "grow",
+          20,
+          30,
+          10,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "new_only",
+          0,
+          15,
+          15,
+          false,
+          0,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "old_only",
+          12,
+          0,
+          -12,
+          false,
+          1,
+          0,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "repeat",
+          30,
+          25,
+          -5,
+          true,
+          2,
+          1,
+          "same-name-total",
+          "同名函数可能混淆；此处比较同文件同名函数集合的总量。"
+        ],
+        [
+          "src/a.c",
+          "shrink",
+          40,
+          25,
+          -15,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "stable_other_changes",
+          30,
+          30,
+          0,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/b.c",
+          "moved",
+          18,
+          18,
+          0,
+          false,
+          1,
+          1,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "name": "entered 完整过滤结果",
+      "state": {
+        "type": "methodLines",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta",
+        "ambiguous",
+        "beforeCount",
+        "afterCount",
+        "comparisonBasis",
+        "warning"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "new_only",
+          0,
+          15,
+          15,
+          false,
+          0,
+          1,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "name": "exited 完整过滤结果",
+      "state": {
+        "type": "methodLines",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta",
+        "ambiguous",
+        "beforeCount",
+        "afterCount",
+        "comparisonBasis",
+        "warning"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "old_only",
+          12,
+          0,
+          -12,
+          false,
+          1,
+          0,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "name": "growth 完整过滤结果",
+      "state": {
+        "type": "methodLines",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta",
+        "ambiguous",
+        "beforeCount",
+        "afterCount",
+        "comparisonBasis",
+        "warning"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "cross_enter",
+          50,
+          51,
+          1,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "grow",
+          20,
+          30,
+          10,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "new_only",
+          0,
+          15,
+          15,
+          false,
+          0,
+          1,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "name": "decrease 完整过滤结果",
+      "state": {
+        "type": "methodLines",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta",
+        "ambiguous",
+        "beforeCount",
+        "afterCount",
+        "comparisonBasis",
+        "warning"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "cross_exit_equal",
+          60,
+          50,
+          -10,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "old_only",
+          12,
+          0,
+          -12,
+          false,
+          1,
+          0,
+          null,
+          null
+        ],
+        [
+          "src/a.c",
+          "repeat",
+          30,
+          25,
+          -5,
+          true,
+          2,
+          1,
+          "same-name-total",
+          "同名函数可能混淆；此处比较同文件同名函数集合的总量。"
+        ],
+        [
+          "src/a.c",
+          "shrink",
+          40,
+          25,
+          -15,
+          false,
+          1,
+          1,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "name": "unchanged 完整过滤结果",
+      "state": {
+        "type": "methodLines",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta",
+        "ambiguous",
+        "beforeCount",
+        "afterCount",
+        "comparisonBasis",
+        "warning"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "stable_other_changes",
+          30,
+          30,
+          0,
+          false,
+          1,
+          1,
+          null,
+          null
+        ],
+        [
+          "src/b.c",
+          "moved",
+          18,
+          18,
+          0,
+          false,
+          1,
+          1,
+          null,
+          null
+        ]
+      ]
+    },
+    {
+      "name": "同名集合 2→1 的总量比较与中文混淆提示",
+      "state": {
+        "type": "methodLines",
+        "status": "all",
+        "query": "repeat"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta",
+        "ambiguous",
+        "beforeCount",
+        "afterCount",
+        "comparisonBasis",
+        "warning"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "repeat",
+          30,
+          25,
+          -5,
+          true,
+          2,
+          1,
+          "same-name-total",
+          "同名函数可能混淆；此处比较同文件同名函数集合的总量。"
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "status_filters": "all、entered、exited、growth、decrease、unchanged 均列出完整投影；状态可以重叠。",
+    "pairing": "root=/golden/project；按相对 path 与 name 配对，moved 起始行 50→250 仍为同一函数。",
+    "metric_isolation": "stable_other_changes 的圈复杂度 2→30 跨过另一度量阈值，但当前行数不变。",
+    "missing_side": "new_only/old_only 在同一个两侧均存在的文件中仅见于一侧，另一侧按本指标总量 0 比较；不推断磁盘新增或删除。",
+    "thresholds": "baseline=50，current=50；严格大于才超限，等于 current 阈值时不超限。",
+    "maximum": "最大值记录仅提供派生最大值，不作为普通函数或业务明细行。",
+    "ordinary_membership": "普通列表 entered/exited 按函数集合存在性；cross_enter/cross_exit_equal 穿越超限边界仅属于 growth/decrease，不属于普通列表的 entered/exited。",
+    "same_name": "repeat：baseline 2 个（10+20），current 1 个（25），总量 30→25，delta=-5；ambiguous=true、beforeCount=2、afterCount=1、comparisonBasis=same-name-total；保留中文提示，不强行逐对象配对或推断阈值进出。非歧义行的 comparisonBasis/warning 为 null。"
+  }
+}

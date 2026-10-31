@@ -1,0 +1,90 @@
+{
+  "issue": ".scratch/unified-prototype/issues/03-detail-queries.md",
+  "scope": "仅记录当前14项真实实现差距；输入和预期已批准，失败不是审核状态。",
+  "failures": [
+    {
+      "fixture": "huge-complexity",
+      "check": "完整业务列表（默认 path:asc，同路径 name:asc）",
+      "failure_sha256": "19ca65060f9d4e2354113d86f1d1ff65a2cfe215b8691fabe23fe6c04850f26d",
+      "reason": "函数列表尚未按路径优先排序"
+    },
+    {
+      "fixture": "huge-complexity",
+      "check": "unchanged 完整过滤结果",
+      "failure_sha256": "ae6bf1a8fa0129c8891e373664d528b6b6d26af9ca958ba4160bc86ba12ad3a0",
+      "reason": "函数列表尚未按路径优先排序"
+    },
+    {
+      "fixture": "huge-method",
+      "check": "完整业务列表（默认 path:asc，同路径 name:asc）",
+      "failure_sha256": "ae5889074c1db7a5fc36952376f3f31e1617a6d8817dfe6f2d06aec996eaa32c",
+      "reason": "函数列表尚未按路径优先排序"
+    },
+    {
+      "fixture": "huge-method",
+      "check": "unchanged 完整过滤结果",
+      "failure_sha256": "8408ce50f709d00fb8a7f4d9b244515622fe13a85f7ccd9c468a0e07f22635a0",
+      "reason": "函数列表尚未按路径优先排序"
+    },
+    {
+      "fixture": "method-complexity",
+      "check": "完整业务列表（默认 path:asc，同路径 name:asc）",
+      "failure_sha256": "d8fc230fd9b750cbccec4dd11d0ae54ce642a8a5dc4bbec201d309a12fb69c03",
+      "reason": "函数列表尚未按路径优先排序"
+    },
+    {
+      "fixture": "method-complexity",
+      "check": "unchanged 完整过滤结果",
+      "failure_sha256": "c2396fc1d10bfc5c656266718b4396cb90111df4cb51f7e5bb1a363057616c22",
+      "reason": "函数列表尚未按路径优先排序"
+    },
+    {
+      "fixture": "method-lines",
+      "check": "完整业务列表（默认 path:asc，同路径 name:asc）",
+      "failure_sha256": "ab0e3ff0bee73cacc6450681a45fec82bf685ab214a6e3ccf4e89ea5b3dd63a1",
+      "reason": "同名集合变化、两侧记录数及函数排序尚未完整接入"
+    },
+    {
+      "fixture": "method-lines",
+      "check": "entered 完整过滤结果",
+      "failure_sha256": "b383a78da4ac2458be38f35eee9633ca5227d61eddffc3c80a2219861381b8e2",
+      "reason": "同名集合变化、两侧记录数及函数排序尚未完整接入"
+    },
+    {
+      "fixture": "method-lines",
+      "check": "exited 完整过滤结果",
+      "failure_sha256": "3144b6d6f3d943fb91c6a78b8ff5541f6eb05ae9f8f4e417e3da0642000470e8",
+      "reason": "同名集合变化、两侧记录数及函数排序尚未完整接入"
+    },
+    {
+      "fixture": "method-lines",
+      "check": "growth 完整过滤结果",
+      "failure_sha256": "8501ec0a26761aa20ca30e3bf314de5934a42377bf1f6a05b582f18c9ffc1225",
+      "reason": "同名集合变化、两侧记录数及函数排序尚未完整接入"
+    },
+    {
+      "fixture": "method-lines",
+      "check": "decrease 完整过滤结果",
+      "failure_sha256": "e3a2de588a6236e7e8f762e50123cadcade7fd92179dd56bb47ac3535fa6790e",
+      "reason": "同名集合变化、两侧记录数及函数排序尚未完整接入"
+    },
+    {
+      "fixture": "method-lines",
+      "check": "decrease 完整过滤结果.total",
+      "failure_sha256": "b2bbc8ff91094f529fb938383cb18fe111513c402cd9856754269dfec611c337",
+      "reason": "同名集合变化、两侧记录数及函数排序尚未完整接入"
+    },
+    {
+      "fixture": "method-lines",
+      "check": "unchanged 完整过滤结果",
+      "failure_sha256": "3456e535905a10a46320d2aac6a3062b90dddda562afd53f61e1b6fb9ecc295a",
+      "reason": "同名集合变化、两侧记录数及函数排序尚未完整接入"
+    },
+    {
+      "fixture": "method-lines",
+      "check": "同名集合 2→1 的总量比较与中文混淆提示",
+      "failure_sha256": "f47c58f4a15d14a2514724674f78e41d3c9ff9bdb4a5f2f950ea23ddb880b5a2",
+      "reason": "同名集合变化、两侧记录数及函数排序尚未完整接入"
+    }
+  ]
+}

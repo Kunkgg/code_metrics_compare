@@ -1,0 +1,8 @@
+{
+  "root": "/golden/project",
+  "config": {
+    "seed": 0,
+    "fixture": "huge-complexity"
+  },
+  "unionFiles": 2
+}

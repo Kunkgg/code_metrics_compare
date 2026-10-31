@@ -6,6 +6,18 @@ const {loadWorker}=require('./worker-harness.cjs');
   const [inputDir,reportPath]=process.argv.slice(2);
   if(!inputDir||!reportPath)throw new Error('用法：node check-unified-contract.cjs 输入目录 HTML');
   const reports=Object.fromEntries(['baseline','current'].map(side=>[side,JSON.parse(fs.readFileSync(path.join(inputDir,side+'.json'),'utf8'))]));
+  // 必填扫描明细不能以空集合兜底，否则字段改名或缺失会被静默漏检。
+  for (const [side, report] of Object.entries(reports)) {
+    const groups = report.detail_metrics.file_duplication;
+    if (!groups || typeof groups !== 'object' || Array.isArray(groups)) {
+      throw new Error(`${side}.detail_metrics.file_duplication 必须是重复文件组对象`);
+    }
+    for (const [id, members] of Object.entries(groups)) {
+      if (!Array.isArray(members) || members.some(member => typeof member !== 'string' || !Object.hasOwn(report.detail_metrics.file_sizes, member))) {
+        throw new Error(`${side}.detail_metrics.file_duplication.${id} 必须是扫描内文件路径数组`);
+      }
+    }
+  }
   const manifest=JSON.parse(fs.readFileSync(path.join(inputDir,'manifest.json'),'utf8')),prefix=manifest.root+'/';
   const relative=value=>{if(!value.startsWith(prefix))throw new Error('夹具根不符');return value.slice(prefix.length);};
   const files=[...new Set(Object.values(reports).flatMap(report=>Object.keys(report.detail_metrics.file_sizes)))].sort().map(full=>{

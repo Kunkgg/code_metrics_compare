@@ -1,0 +1,17 @@
+{
+  "purpose": "原 file-duplication 候选的源码与扫描行数证据；不验证对比业务。",
+  "content_evidence": {
+    "baseline": {
+      "/golden/project/src/left.c": "content/baseline/left.c",
+      "/golden/project/src/right.c": "content/baseline/right.c"
+    },
+    "current": {
+      "/golden/project/src/left.c": "content/current/left.c",
+      "/golden/project/src/right.c": "content/current/right.c"
+    }
+  },
+  "content_md5": {
+    "baseline": "871a8420252c4a6c2dbd2bbc5d49cb93",
+    "current": "e1c5a6944f2ae2d7edf694a377d6c0e6"
+  }
+}

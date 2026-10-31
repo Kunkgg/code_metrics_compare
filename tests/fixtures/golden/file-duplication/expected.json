@@ -1,0 +1,350 @@
+{
+  "review_status": "approved",
+  "description": "整文件重复成员进出：old.c退出、new.c进入、stay.c及mirror.h不变，总成员数3不变。源文件子集为2，源文件重复率分母仍是全部4文件。每侧重复组的三份内容相同（20个全局int声明）；非成员30行内容不同。按MD5相同这一扫描事实比较成员关系，不在此验证扫描器的哈希实现。原content证据已移至validation/file-content-evidence。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "970b5750ee8bbfd87e9cfa1fdddcd4926fd9296067056de90066ac1ed5eadd94",
+      "current": "37be7cc401860cff49a1f9df40a6e3f40cde6bb1b7f00a0ee37b60f2274bfa6c"
+    },
+    "business_sha256": "5978570905393839468caef8f22f3034a600b225077711f97b4c29112713fd7b"
+  },
+  "summary_comparison": {
+    "files_total": {
+      "b": 4,
+      "c": 4,
+      "delta": 0.0
+    },
+    "file_duplication_total": {
+      "b": 3,
+      "c": 3,
+      "delta": 0.0
+    },
+    "file_duplication_ratio": {
+      "b": 75,
+      "c": 75,
+      "delta": 0.0
+    },
+    "non_hfile_duplication_total": {
+      "b": 2,
+      "c": 2,
+      "delta": 0.0
+    },
+    "non_hfile_duplication_ratio": {
+      "b": 50,
+      "c": 50,
+      "delta": 0.0
+    },
+    "code_duplication_total": {
+      "b": 60,
+      "c": 60,
+      "delta": 0.0
+    }
+  },
+  "queries": [
+    {
+      "name": "dupfiles all",
+      "state": {
+        "type": "dupfiles",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "include/mirror.h",
+          1,
+          1,
+          0
+        ],
+        [
+          "src/new.c",
+          0,
+          1,
+          1
+        ],
+        [
+          "src/old.c",
+          1,
+          0,
+          -1
+        ],
+        [
+          "src/stay.c",
+          1,
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "dupfiles entered",
+      "state": {
+        "type": "dupfiles",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/new.c",
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "dupfiles exited",
+      "state": {
+        "type": "dupfiles",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/old.c",
+          1,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "dupfiles growth",
+      "state": {
+        "type": "dupfiles",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/new.c",
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "dupfiles decrease",
+      "state": {
+        "type": "dupfiles",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/old.c",
+          1,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "dupfiles unchanged",
+      "state": {
+        "type": "dupfiles",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "include/mirror.h",
+          1,
+          1,
+          0
+        ],
+        [
+          "src/stay.c",
+          1,
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "sourceDupfiles all",
+      "state": {
+        "type": "sourceDupfiles",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/new.c",
+          0,
+          1,
+          1
+        ],
+        [
+          "src/old.c",
+          1,
+          0,
+          -1
+        ],
+        [
+          "src/stay.c",
+          1,
+          1,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "sourceDupfiles entered",
+      "state": {
+        "type": "sourceDupfiles",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/new.c",
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "sourceDupfiles exited",
+      "state": {
+        "type": "sourceDupfiles",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/old.c",
+          1,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "sourceDupfiles growth",
+      "state": {
+        "type": "sourceDupfiles",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/new.c",
+          0,
+          1,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "sourceDupfiles decrease",
+      "state": {
+        "type": "sourceDupfiles",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/old.c",
+          1,
+          0,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "sourceDupfiles unchanged",
+      "state": {
+        "type": "sourceDupfiles",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/stay.c",
+          1,
+          1,
+          0
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "dupfiles": [
+      "entered",
+      "exited",
+      "unchanged"
+    ],
+    "sourceDupfiles": [
+      "entered",
+      "exited",
+      "unchanged"
+    ],
+    "growth_decrease": "逐成员为0/1关系；计数及比例由成员进出影响，不存在单个成员的多级增长"
+  }
+}

@@ -1,6 +1,10 @@
 """测试 L0–L3 校验器的行为与拦截能力."""
 
+import msgspec
+import pytest
+
 from cmetrics_cmp_viz.generator import GeneratorConfig, MockDataGenerator
+from cmetrics_cmp_viz.schema import CmetricsReport
 from cmetrics_cmp_viz.validator import (
     validate_l0,
     validate_l1,
@@ -176,3 +180,82 @@ class TestL3Validator:
         int_model["file_models"][first_key]["dup_lines_union"].append(99999)
         errs = validate_l3(report, int_model)
         assert any("内部重复行覆盖并集大小" in e for e in errs)
+
+
+@pytest.mark.parametrize("keep_new_field", [False, True])
+def test_old_duplication_field_rejected(keep_new_field):
+    """旧字段单独出现或与新字段并存都必须拒绝，不提供别名兼容。"""
+    report, _ = get_valid_sample()
+    detail = report["detail_metrics"]
+    detail["duplication_files"] = detail["file_duplication"]
+    if not keep_new_field:
+        del detail["file_duplication"]
+    assert any("duplication_files" in error for error in validate_l1(report))
+    with pytest.raises(msgspec.ValidationError, match="duplication_files"):
+        msgspec.json.decode(msgspec.json.encode(report), type=CmetricsReport)
+
+
+def test_new_duplication_field_passes_all_layers():
+    report, model = get_valid_sample()
+    assert report["detail_metrics"]["file_duplication"]
+    decoded = msgspec.json.decode(msgspec.json.encode(report), type=CmetricsReport)
+    assert decoded.detail_metrics.file_duplication == report["detail_metrics"]["file_duplication"]
+    assert validate_l1(report) == []
+    assert validate_l2(report) == []
+    assert validate_l3(report, model) == []
+
+
+def test_new_duplication_field_references_and_coverage_checked():
+    report, model = get_valid_sample()
+    members = next(iter(report["detail_metrics"]["file_duplication"].values()))
+    path = members[0]
+    report["detail_metrics"]["file_sizes"][path][2] -= 1
+    assert any("整文件重复成员" in error for error in validate_l3(report, model))
+    members.append("/workspace/project/src/missing.c")
+    assert any("整文件重复组" in error and "引用不存在" in error for error in validate_l2(report))
+
+
+@pytest.mark.parametrize(
+    "file_count, expected_ratio, old_ratio, mean, old_mean, density, old_density",
+    [
+        (3, 33.33, 33.333333, 334.33, 334.333333, 1.00, 0.997009),
+        (6, 16.67, 16.666667, 167.67, 167.666667, 0.99, 0.994036),
+    ],
+)
+def test_l2_all_float_metrics_two_digit_precision(
+    file_count, expected_ratio, old_ratio, mean, old_mean, density, old_density
+):
+    """独立构造 1/3 和 1/6，接受两位指标并拒绝旧六位值及微小偏差。"""
+    report, _ = MockDataGenerator(GeneratorConfig(num_files=0)).generate_single_report()
+    paths = [f"/workspace/project/src/f{i}.c" for i in range(file_count)]
+    detail = report["detail_metrics"]
+    detail["file_sizes"] = {
+        path: [1001 if i == 0 else 1, 1001 if i == 0 else 1, 0] for i, path in enumerate(paths)
+    }
+    detail["unsafe_functions"] = {paths[0]: {"strcpy": [1]}}
+    summary = report["summary_metrics"]
+    summary.update(
+        code_size=1000 + file_count,
+        raw_lines=1000 + file_count,
+        files_total=file_count,
+        folders_total=1,
+        lines_per_file=mean,
+        huge_non_headerfile_total=1,
+        huge_non_headerfile_ratio=expected_ratio,
+        unsafe_functions_total=1,
+        unsafe_functions_kloc=density,
+    )
+    summary["huge_threshold"]["huge_non_headerfile"] = 1000
+    assert validate_l1(report) == []
+    assert validate_l2(report) == []
+    for name, expected, old_value in (
+        ("huge_non_headerfile_ratio", expected_ratio, old_ratio),
+        ("lines_per_file", mean, old_mean),
+        ("unsafe_functions_kloc", density, old_density),
+    ):
+        for invalid in (old_value, expected + 0.000001):
+            summary[name] = invalid
+            assert validate_l1(report) == []
+            assert any(f"{name} 复算不符" in e for e in validate_l2(report))
+        summary[name] = expected
+    assert validate_l2(report) == []

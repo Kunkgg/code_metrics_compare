@@ -20,7 +20,14 @@ from typing import Any
 
 from cmetrics_cmp_viz.schema import is_header_file
 from prototypes.resource_usage import peak_rss_mib
-from prototypes.ui.prototype import MAIN_METRICS, display_number, load_metric_names, safe_json
+from prototypes.ui.prototype import (
+    MAIN_METRICS,
+    THRESHOLD_KEYS,
+    display_number,
+    load_metric_names,
+    safe_json,
+    threshold_comparison,
+)
 
 BLOCK_ORDER = [
     "meta",
@@ -121,7 +128,7 @@ class SideData:
             )
         self.dupfiles = [
             (group_id, [file_id[rel_path(p, root)] for p in members])
-            for group_id, members in detail["duplication_files"].items()
+            for group_id, members in detail["file_duplication"].items()
         ]
         self.unsafe: list[tuple[int, int, int]] = []
         for path, names in detail["unsafe_functions"].items():
@@ -187,6 +194,7 @@ def compact_threshold_transitions(
             "entered": len(after[kind] - before[kind]),
             "exited": len(before[kind] - after[kind]),
             "limited": limited.get(kind, False),
+            **threshold_comparison(baseline.summary, current.summary, kind),
         }
         for kind in before
     }, len(ambiguous)
@@ -254,8 +262,14 @@ def static_overview(meta: dict[str, Any]) -> str:
         c = meta["summaries"]["current"][key]
         decimal = key.endswith(("_ratio", "_kloc", "_per_file", "_per_method"))
         delta = c - b
+        warning = ""
+        for kind, threshold_key in THRESHOLD_KEYS.items():
+            if key in (threshold_key + "_total", threshold_key + "_ratio"):
+                transition = meta["thresholdTransitions"][kind]
+                if transition.get("warning"):
+                    warning = f'<p class="notice">{html.escape(transition["warning"])}</p>'
         rows.append(
-            f"<tr><td>{html.escape(name)}</td><td>{display_number(b, decimal=decimal)}</td>"
+            f"<tr><td>{html.escape(name)}{warning}</td><td>{display_number(b, decimal=decimal)}</td>"
             f"<td>{display_number(c, decimal=decimal)}</td>"
             f"<td>{display_number(delta, decimal=decimal, delta=True)}</td><td>{html.escape(unit)}</td></tr>"
         )

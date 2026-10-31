@@ -68,11 +68,23 @@
   const scenario=query('[data-change="scenario"]');scenario.value='limited';scenario.dispatchEvent(new Event('change',{bubbles:true}));
   const cc=query('[data-threshold-type="hugeCC"]');
   assert(cc.textContent.includes('基线 > 20')&&cc.textContent.includes('当前 > 25')&&cc.textContent.includes('阈值变化'),'变化阈值明确显示基线20和当前25');
-  for(const key of ['huge_cyclomatic_complexity_total','huge_cyclomatic_complexity_ratio','huge_folder_total','huge_folder_ratio']){
+  for(const key of ['huge_folder_total','huge_folder_ratio']){
     const row=query(`[data-summary-metric="${key}"]`);
     assert(row.querySelector('.badge.warning')&&row.cells[3].textContent.startsWith('—'),`${key}异常不输出确定差值`);
   }
-  for(const type of ['hugeCC','folders']){
+  for(const key of ['huge_cyclomatic_complexity_total','huge_cyclomatic_complexity_ratio']){
+    const row=query(`[data-summary-metric="${key}"]`);
+    assert(row.querySelector('.badge.warning')&&!row.cells[3].textContent.startsWith('—'),`${key}阈值变化仍输出观测差值并提示`);
+  }
+  for(const status of ['entered','exited']){
+    const selector=`[data-huge-type="hugeCC"] [data-status="${status}"]`;
+    assert(query(selector)?.textContent.includes('1'),`阈值变化 ${status}仍显示实际清单进出`);
+    click(selector);
+    assert(state().status===status&&state().result===1,`阈值变化 ${status}可下钻`);
+    assert(query('.threshold-note').textContent.includes('不证明代码恶化或改善'),'详情保留阈值与解释边界提示');
+    width();goMetrics();
+  }
+  for(const type of ['folders']){
     const movements=query(`[data-huge-type="${type}"]`).querySelectorAll('.movement');
     assert([...movements].every(button=>button.textContent.includes('—')&&!button.classList.contains('growth')&&!button.classList.contains('decrease')),`${type}不可比较的进出不显示0和方向色`);
     click(`[data-huge-type="${type}"] .movement`);

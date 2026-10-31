@@ -1,0 +1,205 @@
+{
+  "review_status": "approved",
+  "description": "阈值固定为100，严格大于才超限。entered从等于阈值增长1，exited回落到等于阈值；growth/decrease分别在超限范围内增减10，unchanged保持不变。超限总数4不变，新增与退出各1仍须显示。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "ccb2890496321990cfe39c370d82ded956e6ab90d31edd259c40d13fe1bcc465",
+      "current": "cb57b849e8766e2d7595e53166d4fa087778c44c31a57f7b7398ecef4b75e089"
+    },
+    "business_sha256": "cb3da3ad4cab351a54657e29b4575c077e143cfd31d09ddc1631b2adbdcbdff7"
+  },
+  "summary_comparison": {
+    "huge_headerfile_total": {
+      "b": 4,
+      "c": 4,
+      "delta": 0.0
+    },
+    "huge_headerfile_ratio": {
+      "b": 80,
+      "c": 80,
+      "delta": 0.0
+    },
+    "code_size": {
+      "b": 541,
+      "c": 541,
+      "delta": 0.0
+    }
+  },
+  "queries": [
+    {
+      "name": "hugeHeader all",
+      "state": {
+        "type": "hugeHeader",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.h",
+          120,
+          110,
+          -10
+        ],
+        [
+          "src/entered.h",
+          100,
+          101,
+          1
+        ],
+        [
+          "src/exited.h",
+          101,
+          100,
+          -1
+        ],
+        [
+          "src/growth.h",
+          110,
+          120,
+          10
+        ],
+        [
+          "src/unchanged.h",
+          110,
+          110,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "hugeHeader entered",
+      "state": {
+        "type": "hugeHeader",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/entered.h",
+          100,
+          101,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "hugeHeader exited",
+      "state": {
+        "type": "hugeHeader",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/exited.h",
+          101,
+          100,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "hugeHeader growth",
+      "state": {
+        "type": "hugeHeader",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/entered.h",
+          100,
+          101,
+          1
+        ],
+        [
+          "src/growth.h",
+          110,
+          120,
+          10
+        ]
+      ]
+    },
+    {
+      "name": "hugeHeader decrease",
+      "state": {
+        "type": "hugeHeader",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.h",
+          120,
+          110,
+          -10
+        ],
+        [
+          "src/exited.h",
+          101,
+          100,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "hugeHeader unchanged",
+      "state": {
+        "type": "hugeHeader",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/unchanged.h",
+          110,
+          110,
+          0
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "hugeHeader": [
+      "entered",
+      "exited",
+      "growth",
+      "decrease",
+      "unchanged"
+    ]
+  }
+}

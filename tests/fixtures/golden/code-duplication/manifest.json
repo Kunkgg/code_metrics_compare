@@ -1,0 +1,8 @@
+{
+  "root": "/golden/project",
+  "config": {
+    "seed": 0,
+    "fixture": "code-duplication"
+  },
+  "unionFiles": 6
+}

@@ -1,0 +1,365 @@
+{
+  "review_status": "approved",
+  "description": "重复代码行与源代码重复率分开：头文件重复行10→20推高整体重复率，源文件重复行合计70不变。源代码重复率分母仍为全部600行。所有文件都存在，重复行0↔20只表示该度量增长／减少。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "cdae146c0b209c0e5e3752260a18a3c4dc27b2faa2f489792027ed502691c844",
+      "current": "02209679c31f7005ac9509670ff1b5432b78040ac0302484a744361c4d7f9915"
+    },
+    "business_sha256": "40cef31fb43bbe518aabc68300adcb34d11789b353ed4326318a2bf5a3f5e7ef"
+  },
+  "summary_comparison": {
+    "code_size": {
+      "b": 600,
+      "c": 600,
+      "delta": 0.0
+    },
+    "code_duplication_total": {
+      "b": 80,
+      "c": 90,
+      "delta": 10.0
+    },
+    "code_duplication_ratio": {
+      "b": 13.33,
+      "c": 15,
+      "delta": 1.67
+    },
+    "non_hfile_code_duplication_total": {
+      "b": 70,
+      "c": 70,
+      "delta": 0.0
+    },
+    "non_hfile_code_duplication_ratio": {
+      "b": 11.67,
+      "c": 11.67,
+      "delta": 0.0
+    }
+  },
+  "queries": [
+    {
+      "name": "duplication all",
+      "state": {
+        "type": "duplication",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "include/api.h",
+          10,
+          20,
+          10
+        ],
+        [
+          "src/decrease.c",
+          30,
+          10,
+          -20
+        ],
+        [
+          "src/entered.c",
+          0,
+          20,
+          20
+        ],
+        [
+          "src/exited.c",
+          20,
+          0,
+          -20
+        ],
+        [
+          "src/growth.c",
+          10,
+          30,
+          20
+        ],
+        [
+          "src/unchanged.c",
+          10,
+          10,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "sourceDuplication all",
+      "state": {
+        "type": "sourceDuplication",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.c",
+          30,
+          10,
+          -20
+        ],
+        [
+          "src/entered.c",
+          0,
+          20,
+          20
+        ],
+        [
+          "src/exited.c",
+          20,
+          0,
+          -20
+        ],
+        [
+          "src/growth.c",
+          10,
+          30,
+          20
+        ],
+        [
+          "src/unchanged.c",
+          10,
+          10,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "duplication entered",
+      "state": {
+        "type": "duplication",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": []
+    },
+    {
+      "name": "duplication exited",
+      "state": {
+        "type": "duplication",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": []
+    },
+    {
+      "name": "duplication growth",
+      "state": {
+        "type": "duplication",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "include/api.h",
+          10,
+          20,
+          10
+        ],
+        [
+          "src/entered.c",
+          0,
+          20,
+          20
+        ],
+        [
+          "src/growth.c",
+          10,
+          30,
+          20
+        ]
+      ]
+    },
+    {
+      "name": "duplication decrease",
+      "state": {
+        "type": "duplication",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.c",
+          30,
+          10,
+          -20
+        ],
+        [
+          "src/exited.c",
+          20,
+          0,
+          -20
+        ]
+      ]
+    },
+    {
+      "name": "duplication unchanged",
+      "state": {
+        "type": "duplication",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/unchanged.c",
+          10,
+          10,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "sourceDuplication entered",
+      "state": {
+        "type": "sourceDuplication",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": []
+    },
+    {
+      "name": "sourceDuplication exited",
+      "state": {
+        "type": "sourceDuplication",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": []
+    },
+    {
+      "name": "sourceDuplication growth",
+      "state": {
+        "type": "sourceDuplication",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/entered.c",
+          0,
+          20,
+          20
+        ],
+        [
+          "src/growth.c",
+          10,
+          30,
+          20
+        ]
+      ]
+    },
+    {
+      "name": "sourceDuplication decrease",
+      "state": {
+        "type": "sourceDuplication",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.c",
+          30,
+          10,
+          -20
+        ],
+        [
+          "src/exited.c",
+          20,
+          0,
+          -20
+        ]
+      ]
+    },
+    {
+      "name": "sourceDuplication unchanged",
+      "state": {
+        "type": "sourceDuplication",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/unchanged.c",
+          10,
+          10,
+          0
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "duplication": [
+      "growth",
+      "decrease",
+      "unchanged"
+    ],
+    "sourceDuplication": [
+      "growth",
+      "decrease",
+      "unchanged"
+    ],
+    "entered_exited": "本例文件集合不变，两种过滤均为空，不能将重复行0当文件缺失"
+  }
+}

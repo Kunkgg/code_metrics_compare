@@ -57,7 +57,7 @@ function uiQuery(state) {
       if(exception)exceptionsCount++;
       if(query&&!`${row.path} ${row.name}`.toLowerCase().includes(query)||!uiMatchesNumber(row,state.numberFilter))continue;
       counts.all++;if(row.changed)counts.changes++;if(exception)counts.exceptions++;
-      if(row.delta===0&&!exception)counts.unchanged++;
+      if(uiMatchesStatus(row,'unchanged'))counts.unchanged++;
       for(const flag of row.flags)if(Object.hasOwn(counts,flag))counts[flag]++;
       if(!uiMatchesStatus(row,state.status))continue;
       ids.push(index);if(exception)resultExceptionsCount++;
@@ -101,6 +101,20 @@ function uiOverview(state) {
   return {files:UI.overview.files,chart:{...uiPage(shown,state.chartPage,20),maximum:UI.overview.maximum}};
 }
 
+function uiTransitions() {
+  const transitions={...S.meta.thresholdTransitions};
+  if(uiContext.scenario==='limited'){
+    const source=uiSource('hugeCC');let entered=0,exited=0,limited=false;
+    for(let i=0;i<source.count;i++)if(source.included(i)){
+      const row=source.row(i);limited ||= !row.transitionKnown;
+      entered+=Number(row.flags.includes('entered'));exited+=Number(row.flags.includes('exited'));
+    }
+    transitions.hugeCC={entered,exited,limited,thresholdChanged:true};
+    transitions.folders={...transitions.folders,limited:true};
+  }
+  return transitions;
+}
+
 function uiSnapshot(state) {
   if(!S.ready)throw new Error('报告数据尚未就绪');
   const context=uiSetContext(state.scenario);
@@ -116,7 +130,7 @@ function uiSnapshot(state) {
   }
   return {
     model:{sides,fileRows:query.rows,methodRows:[],folderRows:[],dirs:[],limited:state.scenario==='limited'},
-    transitions:state.scenario==='limited'?{...S.meta.thresholdTransitions,hugeCC:{...S.meta.thresholdTransitions.hugeCC,limited:true},folders:{...S.meta.thresholdTransitions.folders,limited:true}}:S.meta.thresholdTransitions,
+    transitions:uiTransitions(),
     ambiguityCount:S.meta.ambiguousMethodCount,
     overview,directories,query,
     selected:query.rows.find(row=>row.id===state.selected)?.id??query.rows[0]?.id??null,

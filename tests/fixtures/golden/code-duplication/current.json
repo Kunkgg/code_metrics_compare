@@ -1,0 +1,152 @@
+{
+  "summary_metrics": {
+    "code_size": 600,
+    "raw_lines": 660,
+    "methods_total": 0,
+    "cyclomatic_complexity_total": 0,
+    "cyclomatic_complexity_per_method": 0,
+    "maximum_cyclomatic_complexity": 0,
+    "huge_cyclomatic_complexity_total": 0,
+    "huge_cyclomatic_complexity_ratio": 0,
+    "method_lines": 0,
+    "lines_per_method": 0,
+    "huge_method_total": 0,
+    "huge_method_ratio": 0,
+    "files_total": 6,
+    "folders_total": 3,
+    "lines_per_file": 100.0,
+    "huge_headerfile_total": 0,
+    "huge_headerfile_ratio": 0.0,
+    "huge_non_headerfile_total": 0,
+    "huge_non_headerfile_ratio": 0.0,
+    "huge_folder_total": 0,
+    "huge_folder_ratio": 0.0,
+    "file_duplication_total": 0,
+    "file_duplication_ratio": 0.0,
+    "non_hfile_duplication_total": 0,
+    "non_hfile_duplication_ratio": 0.0,
+    "code_duplication_total": 90,
+    "code_duplication_ratio": 15.0,
+    "non_hfile_code_duplication_total": 70,
+    "non_hfile_code_duplication_ratio": 11.67,
+    "unsafe_functions_total": 0,
+    "unsafe_functions_kloc": 0.0,
+    "redundant_code_total": 0,
+    "redundant_code_kloc": 0,
+    "huge_threshold": {
+      "huge_headerfile": 100,
+      "huge_non_headerfile": 400,
+      "huge_method": 50,
+      "huge_cyclomatic_complexity": 10,
+      "huge_folder": 50
+    },
+    "cmetrics_version": "mock-golden-v2",
+    "command": "cmetrics -fp /golden/project -l clike"
+  },
+  "detail_metrics": {
+    "file_sizes": {
+      "/golden/project/src/entered.c": [
+        100,
+        110,
+        20
+      ],
+      "/golden/project/src/exited.c": [
+        100,
+        110,
+        0
+      ],
+      "/golden/project/src/growth.c": [
+        100,
+        110,
+        30
+      ],
+      "/golden/project/src/decrease.c": [
+        100,
+        110,
+        10
+      ],
+      "/golden/project/src/unchanged.c": [
+        100,
+        110,
+        10
+      ],
+      "/golden/project/include/api.h": [
+        100,
+        110,
+        20
+      ]
+    },
+    "method_metrics": [
+      {
+        "maximum_cyclomatic_complexity": 0,
+        "maximum_nbnc_loc": 0
+      }
+    ],
+    "code_duplication": {
+      "c-entered.c": [
+        {
+          "file_name": "/golden/project/src/entered.c",
+          "start_line": 1,
+          "code_duplication": 10
+        },
+        {
+          "file_name": "/golden/project/src/entered.c",
+          "start_line": 11,
+          "code_duplication": 10
+        }
+      ],
+      "c-growth.c": [
+        {
+          "file_name": "/golden/project/src/growth.c",
+          "start_line": 1,
+          "code_duplication": 15
+        },
+        {
+          "file_name": "/golden/project/src/growth.c",
+          "start_line": 16,
+          "code_duplication": 15
+        }
+      ],
+      "c-decrease.c": [
+        {
+          "file_name": "/golden/project/src/decrease.c",
+          "start_line": 1,
+          "code_duplication": 5
+        },
+        {
+          "file_name": "/golden/project/src/decrease.c",
+          "start_line": 6,
+          "code_duplication": 5
+        }
+      ],
+      "c-unchanged.c": [
+        {
+          "file_name": "/golden/project/src/unchanged.c",
+          "start_line": 1,
+          "code_duplication": 5
+        },
+        {
+          "file_name": "/golden/project/src/unchanged.c",
+          "start_line": 6,
+          "code_duplication": 5
+        }
+      ],
+      "c-api.h": [
+        {
+          "file_name": "/golden/project/include/api.h",
+          "start_line": 1,
+          "code_duplication": 10
+        },
+        {
+          "file_name": "/golden/project/include/api.h",
+          "start_line": 11,
+          "code_duplication": 10
+        }
+      ]
+    },
+    "file_duplication": {},
+    "unsafe_functions": {},
+    "redundant_code": {},
+    "huge_folders": {}
+  }
+}

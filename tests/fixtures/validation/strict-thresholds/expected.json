@@ -1,0 +1,96 @@
+{
+  "purpose": "输入或公式校验夹具，不作为业务 golden。",
+  "description": "五类阈值均覆盖 -1／等于／+1：目录直接成员为 1、2、3；根也有 3 个直接目录。",
+  "validation": {
+    "baseline": {
+      "L1": [],
+      "L2": []
+    },
+    "current": {
+      "L1": [],
+      "L2": []
+    }
+  },
+  "summaries": {
+    "baseline": {
+      "code_size": 1500,
+      "raw_lines": 2100,
+      "methods_total": 3,
+      "cyclomatic_complexity_total": 30,
+      "cyclomatic_complexity_per_method": 10,
+      "maximum_cyclomatic_complexity": 11,
+      "huge_cyclomatic_complexity_total": 1,
+      "huge_cyclomatic_complexity_ratio": 33.33,
+      "method_lines": 150,
+      "lines_per_method": 50,
+      "huge_method_total": 1,
+      "huge_method_ratio": 33.33,
+      "files_total": 6,
+      "folders_total": 4,
+      "lines_per_file": 250,
+      "huge_headerfile_total": 1,
+      "huge_headerfile_ratio": 16.67,
+      "huge_non_headerfile_total": 1,
+      "huge_non_headerfile_ratio": 16.67,
+      "huge_folder_total": 2,
+      "huge_folder_ratio": 50,
+      "file_duplication_total": 0,
+      "file_duplication_ratio": 0,
+      "non_hfile_duplication_total": 0,
+      "non_hfile_duplication_ratio": 0,
+      "code_duplication_total": 0,
+      "code_duplication_ratio": 0,
+      "non_hfile_code_duplication_total": 0,
+      "non_hfile_code_duplication_ratio": 0,
+      "unsafe_functions_total": 0,
+      "unsafe_functions_kloc": 0,
+      "redundant_code_total": 0,
+      "redundant_code_kloc": 0
+    },
+    "current": {
+      "code_size": 1500,
+      "raw_lines": 2100,
+      "methods_total": 3,
+      "cyclomatic_complexity_total": 30,
+      "cyclomatic_complexity_per_method": 10,
+      "maximum_cyclomatic_complexity": 11,
+      "huge_cyclomatic_complexity_total": 1,
+      "huge_cyclomatic_complexity_ratio": 33.33,
+      "method_lines": 150,
+      "lines_per_method": 50,
+      "huge_method_total": 1,
+      "huge_method_ratio": 33.33,
+      "files_total": 6,
+      "folders_total": 4,
+      "lines_per_file": 250,
+      "huge_headerfile_total": 1,
+      "huge_headerfile_ratio": 16.67,
+      "huge_non_headerfile_total": 1,
+      "huge_non_headerfile_ratio": 16.67,
+      "huge_folder_total": 2,
+      "huge_folder_ratio": 50,
+      "file_duplication_total": 0,
+      "file_duplication_ratio": 0,
+      "non_hfile_duplication_total": 0,
+      "non_hfile_duplication_ratio": 0,
+      "code_duplication_total": 0,
+      "code_duplication_ratio": 0,
+      "non_hfile_code_duplication_total": 0,
+      "non_hfile_code_duplication_ratio": 0,
+      "unsafe_functions_total": 0,
+      "unsafe_functions_kloc": 0,
+      "redundant_code_total": 0,
+      "redundant_code_kloc": 0
+    }
+  },
+  "maxima": {
+    "baseline": {
+      "maximum_cyclomatic_complexity": 11,
+      "maximum_nbnc_loc": 51
+    },
+    "current": {
+      "maximum_cyclomatic_complexity": 11,
+      "maximum_nbnc_loc": 51
+    }
+  }
+}

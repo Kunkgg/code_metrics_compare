@@ -19,13 +19,13 @@
     "nonNegativeNumber": {
       "type": "number",
       "minimum": 0,
-      "description": "有限非负数；生成结果最多保留六位小数，精度和公式由语义校验检查。"
+      "description": "有限非负数；均值和密度按 Decimal Half-Up 保留两位小数，JSON 数值可省略尾零；精度和公式由语义校验检查，不使用浮点 multipleOf。"
     },
     "percentage": {
       "type": "number",
       "minimum": 0,
       "maximum": 100,
-      "description": "百分数，5.0 表示 5%；零分母输出 0 仅为当前模拟 profile 的约定。"
+      "description": "百分数，5.0 表示 5%；按 Decimal Half-Up 保留两位小数，JSON 数值可省略尾零；精度和公式由语义校验检查，不使用浮点 multipleOf；零分母输出 0 仅为当前模拟 profile 的约定。"
     },
     "lineNumber": {
       "type": "integer",
@@ -208,7 +208,7 @@
         },
         "file_duplication_total": {
           "$ref": "#/$defs/nonNegativeInteger",
-          "description": "duplication_files 所有组成员的文件路径并集大小，不是组数或剔除每组一份后的副本数。"
+          "description": "file_duplication 所有组成员的文件路径并集大小，不是组数或剔除每组一份后的副本数。"
         },
         "file_duplication_ratio": {
           "$ref": "#/$defs/percentage",
@@ -351,7 +351,7 @@
         "file_sizes",
         "method_metrics",
         "code_duplication",
-        "duplication_files",
+        "file_duplication",
         "unsafe_functions",
         "redundant_code",
         "huge_folders"
@@ -388,9 +388,9 @@
             "items": { "$ref": "#/$defs/duplicationFragment" }
           }
         },
-        "duplication_files": {
+        "file_duplication": {
           "type": "object",
-          "description": "扫描内组名到全文重复文件路径数组的映射，每组至少两个不同文件。内容等价性不能由 Schema 证明。",
+          "description": "扫描内组名到相同内容 MD5 的重复文件路径数组的映射，每组至少两个不同文件。输入不含内容或 MD5，Schema 与当前校验器均不能核验内容等价性或 MD5。",
           "propertyNames": { "$ref": "#/$defs/nonEmptyString" },
           "additionalProperties": {
             "type": "array",

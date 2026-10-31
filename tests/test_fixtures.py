@@ -1,7 +1,11 @@
 """根据 docs/mock-data-generation.md §7 要求的正确性夹具最小集进行专项验证."""
 
+from decimal import ROUND_HALF_UP, Decimal
+
+import msgspec
+import pytest
+
 from cmetrics_cmp_viz.generator import GeneratorConfig, MockDataGenerator
-from cmetrics_cmp_viz.schema import safe_div
 from cmetrics_cmp_viz.validator import (
     compute_common_root,
     validate_l1,
@@ -71,7 +75,7 @@ class TestSpecialFixtures:
                     }
                 ],
                 "code_duplication": {},
-                "duplication_files": {},
+                "file_duplication": {},
                 "unsafe_functions": {},
                 "redundant_code": {},
                 "huge_folders": {},
@@ -142,7 +146,7 @@ class TestSpecialFixtures:
                     }
                 ],
                 "code_duplication": {},
-                "duplication_files": {},
+                "file_duplication": {},
                 "unsafe_functions": {},
                 "redundant_code": {},
                 "huge_folders": {},
@@ -152,26 +156,39 @@ class TestSpecialFixtures:
         assert validate_l1(report) == []
         assert validate_l2(report) == []
 
-    def test_fixture_5_density_boundary_999_1000_1001(self):
-        """正例 5: 冗余代码密度边界.
-
-        code_size = 999 -> redundant_code_kloc = 0.0
-        code_size = 1000 -> 正常计算
-        code_size = 1001 -> 正常计算
-        """
-        # code_size = 999
-        assert safe_div(5, 999, 1000.0) > 0  # 普通除法大于 0
-        # 但按照规则，code_size < 1000 时，必须为 0.0
-        kloc_999 = 0.0
-        assert kloc_999 == 0.0
-
-        # code_size = 1000: 5 / 1000 * 1000 = 5.0
-        kloc_1000 = safe_div(5, 1000, 1000.0)
-        assert kloc_1000 == 5.0
-
-        # code_size = 1001: 5 / 1001 * 1000 = 4.995005
-        kloc_1001 = safe_div(5, 1001, 1000.0)
-        assert kloc_1001 == 4.995005
+    @pytest.mark.parametrize(
+        "code_size, expected_redundant", [(999, 0.00), (1000, 2.00), (1001, 2.00)]
+    )
+    def test_fixture_5_density_boundary_999_1000_1001(self, code_size, expected_redundant):
+        """密度舍入不改变低代码量规则，unsafe 密度不套用该规则。"""
+        report, _ = MockDataGenerator(GeneratorConfig(num_files=0)).generate_single_report()
+        path = "/workspace/project/src/boundary.c"
+        detail = report["detail_metrics"]
+        detail["file_sizes"] = {path: [code_size, code_size, 0]}
+        detail["unsafe_functions"] = {path: {"strcpy": [1]}}
+        detail["redundant_code"] = {path: [2, 3]}
+        summary = report["summary_metrics"]
+        summary.update(
+            code_size=code_size,
+            raw_lines=code_size,
+            files_total=1,
+            folders_total=1,
+            lines_per_file=float(code_size),
+            unsafe_functions_total=1,
+            unsafe_functions_kloc=1.00,
+            redundant_code_total=2,
+            redundant_code_kloc=expected_redundant,
+        )
+        assert validate_l1(report) == []
+        assert validate_l2(report) == []
+        # 旧六位值在 999/1001 边界都必须拒绝，不能先舍入输入再比较。
+        if code_size != 1000:
+            summary["unsafe_functions_kloc"] = 1.001001 if code_size == 999 else 0.999001
+            assert any("unsafe_functions_kloc 复算不符" in e for e in validate_l2(report))
+            summary["unsafe_functions_kloc"] = 1.00
+        if code_size == 1001:
+            summary["redundant_code_kloc"] = 1.998002
+            assert any("redundant_code_kloc 复算不符" in e for e in validate_l2(report))
 
     def test_fixture_common_root_and_multiple_fp(self):
         """正例 9: 多路径 -fp 参数与公共根计算."""
@@ -212,3 +229,46 @@ class TestSpecialFixtures:
             assert "target" in entry
             assert "type" in entry
             assert "field" in entry
+
+
+@pytest.mark.parametrize("seed", [42, 123, 999])
+def test_generator_float_outputs_rounded_from_counts(seed):
+    """独立使用原始计数复算全部浮点指标，并验证序列化后的两位精度。"""
+    report, _ = MockDataGenerator(GeneratorConfig(seed=seed, num_files=12)).generate_single_report()
+    summary = report["summary_metrics"]
+    denominators = {
+        "huge_cyclomatic_complexity": "methods_total",
+        "huge_method": "methods_total",
+        "huge_headerfile": "files_total",
+        "huge_non_headerfile": "files_total",
+        "huge_folder": "folders_total",
+        "file_duplication": "files_total",
+        "non_hfile_duplication": "files_total",
+        "code_duplication": "code_size",
+        "non_hfile_code_duplication": "code_size",
+    }
+    for prefix, denominator in denominators.items():
+        expected = (
+            Decimal(summary[f"{prefix}_total"]) / Decimal(summary[denominator]) * 100
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        assert summary[f"{prefix}_ratio"] == float(expected)
+    for name, numerator, denominator, multiplier in (
+        ("cyclomatic_complexity_per_method", "cyclomatic_complexity_total", "methods_total", 1),
+        ("lines_per_method", "method_lines", "methods_total", 1),
+        ("lines_per_file", "code_size", "files_total", 1),
+        ("unsafe_functions_kloc", "unsafe_functions_total", "code_size", 1000),
+        ("redundant_code_kloc", "redundant_code_total", "code_size", 1000),
+    ):
+        expected = (
+            Decimal(summary[numerator]) / Decimal(summary[denominator]) * multiplier
+        ).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if name == "redundant_code_kloc" and summary["code_size"] < 1000:
+            expected = Decimal(0)
+        assert summary[name] == float(expected)
+    # JSON 数值允许省略尾零；编码解码后仍应等于两位量化值。
+    decoded = msgspec.json.decode(msgspec.json.encode(report))["summary_metrics"]
+    for value in decoded.values():
+        if isinstance(value, float):
+            decimal_value = Decimal(str(value))
+            assert decimal_value == decimal_value.quantize(Decimal("0.01"))
+    assert validate_l2(report) == []

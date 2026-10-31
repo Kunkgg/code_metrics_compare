@@ -26,7 +26,7 @@ def _summarize(detail: dict[str, Any], directory_count: int) -> dict[str, Any]:
     files = detail["file_sizes"]
     methods = detail["method_metrics"][:-1]
     sources = {p for p in files if not is_header_file(p)}
-    dup_files = {p for group in detail["duplication_files"].values() for p in group}
+    dup_files = {p for group in detail["file_duplication"].values() for p in group}
     summary = {
         "code_size": sum(v[0] for v in files.values()),
         "raw_lines": sum(v[1] for v in files.values()),
@@ -211,7 +211,7 @@ def generate_scale_side(
         "code_duplication": {"code_duplication_1": fragments_a, "code_duplication_2": fragments_b}
         if group_size
         else {},
-        "duplication_files": {"duplication_file_1": whole_members} if whole_members else {},
+        "file_duplication": {"duplication_file_1": whole_members} if whole_members else {},
         "unsafe_functions": unsafe,
         "redundant_code": redundant,
         "huge_folders": {p: n for p, n in directory_items.items() if n > THRESHOLDS["huge_folder"]},

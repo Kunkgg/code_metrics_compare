@@ -1,0 +1,205 @@
+{
+  "review_status": "approved",
+  "description": "只有注释／空白；文件存在、有效代码行为零、无函数。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../../samples/golden-candidates/issues.md#comments-only",
+    "decision": "OK",
+    "scope": "两侧输入与原查询预期；本轮仅移除校验器预期并补录审批记录"
+  },
+  "summary_comparison": {
+    "code_size": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "raw_lines": {
+      "b": 10,
+      "c": 20,
+      "delta": 10
+    },
+    "methods_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "cyclomatic_complexity_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "cyclomatic_complexity_per_method": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "maximum_cyclomatic_complexity": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_cyclomatic_complexity_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_cyclomatic_complexity_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "method_lines": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "lines_per_method": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_method_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_method_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "files_total": {
+      "b": 1,
+      "c": 2,
+      "delta": 1
+    },
+    "folders_total": {
+      "b": 1,
+      "c": 1,
+      "delta": 0
+    },
+    "lines_per_file": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_headerfile_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_headerfile_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_non_headerfile_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_non_headerfile_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_folder_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "huge_folder_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "file_duplication_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "file_duplication_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "non_hfile_duplication_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "non_hfile_duplication_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "code_duplication_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "code_duplication_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "non_hfile_code_duplication_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "non_hfile_code_duplication_ratio": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "unsafe_functions_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "unsafe_functions_kloc": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "redundant_code_total": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    },
+    "redundant_code_kloc": {
+      "b": 0,
+      "c": 0,
+      "delta": 0
+    }
+  },
+  "queries": [
+    {
+      "name": "文件完整清单",
+      "state": {
+        "type": "code"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "a.c",
+          0,
+          0,
+          0
+        ],
+        [
+          "b.c",
+          0,
+          0,
+          0
+        ]
+      ]
+    }
+  ]
+}

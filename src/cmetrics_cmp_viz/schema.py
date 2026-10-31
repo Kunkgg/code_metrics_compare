@@ -9,8 +9,8 @@ from typing import Any
 import msgspec
 
 
-def round_half_up(val: float | Decimal | int, decimals: int = 6) -> float:
-    """按十进制 Half-Up 规则舍入到指定小数位，返回 float."""
+def round_half_up(val: float | Decimal | int, decimals: int = 2) -> float:
+    """按十进制 Half-Up 规则默认舍入到两位小数；底层计算可显式指定精度。"""
     d = Decimal(str(val)) if not isinstance(val, Decimal) else val
     factor = Decimal(10) ** -decimals
     rounded = d.quantize(factor, rounding=ROUND_HALF_UP)
@@ -20,11 +20,11 @@ def round_half_up(val: float | Decimal | int, decimals: int = 6) -> float:
 
 
 def safe_div(num: int | float, denom: int | float, multiplier: float = 1.0) -> float:
-    """安全除法：分母为 0 时返回 0.0，否则计算 num / denom * multiplier 并 Half-Up 舍入至 6 位小数."""
+    """安全除法：分母为 0 时返回 0.0，否则按 Decimal Half-Up 统一舍入到两位小数。"""
     if denom == 0:
         return 0.0
     val = (Decimal(str(num)) / Decimal(str(denom))) * Decimal(str(multiplier))
-    return round_half_up(val, 6)
+    return round_half_up(val)
 
 
 class HugeThreshold(msgspec.Struct, forbid_unknown_fields=True):
@@ -113,7 +113,8 @@ class DetailMetrics(msgspec.Struct, forbid_unknown_fields=True):
     file_sizes: dict[str, list[int]]
     method_metrics: list[Any]  # 包含 MethodItem 和位于末尾的 MethodMaxima
     code_duplication: dict[str, list[DuplicationFragment]]
-    duplication_files: dict[str, list[str]]
+    # 相同内容 MD5 的重复文件组；输入不含内容或 MD5，无法据此核验。
+    file_duplication: dict[str, list[str]]
     unsafe_functions: dict[str, dict[str, list[int]]]
     redundant_code: dict[str, list[int]]
     huge_folders: dict[str, int]

@@ -13,7 +13,6 @@ from jsonschema import Draft202012Validator
 from cmetrics_cmp_viz.schema import (
     is_header_file,
     is_source_file,
-    round_half_up,
     safe_div,
 )
 
@@ -251,7 +250,7 @@ def validate_l2(data: dict[str, Any]) -> list[str]:
                     if length < 1:
                         errors.append(f"L2: 重复片段长度必须 >= 1: {length}")
 
-    dup_files = detail.get("duplication_files", {})
+    dup_files = detail.get("file_duplication", {})
     if isinstance(dup_files, dict):
         for gname, f_list in dup_files.items():
             if not isinstance(f_list, list) or len(f_list) < 2:
@@ -368,10 +367,9 @@ def validate_l2(data: dict[str, Any]) -> list[str]:
         if actual is None:
             errors.append(f"L2: 指标 {name} 缺失")
             return
-        exp_r = round_half_up(expected)
-        act_r = round_half_up(actual)
-        if abs(exp_r - act_r) > 1e-6:
-            errors.append(f"L2: 指标 {name} 复算不符: 期望 {exp_r}, 实际 {act_r}")
+        # expected 已按 Decimal Half-Up 统一舍入至两位；直接比较以拒绝旧六位值。
+        if actual != expected:
+            errors.append(f"L2: 指标 {name} 复算不符: 期望 {expected}, 实际 {actual}")
 
     # 分组统计集合
     H_files = [p for p in all_file_paths if is_header_file(p)]
@@ -519,7 +517,7 @@ def validate_l3(
     internal_model: dict[str, Any],
     change_ledger: list[dict[str, Any]] | None = None,
 ) -> list[str]:
-    """L3 校验：校验内部有效行覆盖并集与 code_duplication 一致性、整文件重复判定与变化台账."""
+    """L3 校验：校验内部有效行覆盖并集与 code_duplication 一致性、整文件重复行数约束与变化台账（不核验内容 MD5）."""
     errors: list[str] = []
 
     detail = report_data.get("detail_metrics", {})
@@ -543,8 +541,8 @@ def validate_l3(
                 f"L3: 文件 {path} 内部重复行覆盖并集大小 ({len(dup_lines_union)}) 与 file_sizes[2] ({sz[2]}) 不一致"
             )
 
-    # 2. 验证 duplication_files 的成员必须满足 d_f == n_f
-    dup_files = detail.get("duplication_files", {})
+    # 2. 验证 file_duplication 的成员必须满足 d_f == n_f；不代表内容 MD5 相同
+    dup_files = detail.get("file_duplication", {})
     for gname, fl in dup_files.items():
         for fpath in fl:
             if fpath in file_sizes:

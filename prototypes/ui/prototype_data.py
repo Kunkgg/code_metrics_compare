@@ -30,7 +30,7 @@ def summarize(detail: dict[str, Any], directory_count: int) -> dict[str, Any]:
     files = detail["file_sizes"]
     methods = detail["method_metrics"][:-1]
     sources = [p for p in files if not is_header_file(p)]
-    dup_files = {p for group in detail["duplication_files"].values() for p in group}
+    dup_files = {p for group in detail["file_duplication"].values() for p in group}
     summary = {
         "code_size": sum(v[0] for v in files.values()),
         "raw_lines": sum(v[1] for v in files.values()),
@@ -217,7 +217,7 @@ def generate_side(seed: int, current: bool) -> tuple[dict[str, Any], dict[str, A
         },
         "method_metrics": methods,
         "code_duplication": groups,
-        "duplication_files": dup_files,
+        "file_duplication": dup_files,
         "unsafe_functions": {
             parser: {"strcpy": [151 if current else 121, 211], "sprintf": [211]},
             shared: {"gets": [81]},

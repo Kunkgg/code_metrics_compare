@@ -1,0 +1,278 @@
+{
+  "review_status": "approved",
+  "description": "文件代码行五类变化；减少10与增长10、新增15与移出15分别抵消。整体55行和每文件13.75行均不变，仍须保留各对象变化。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "1890c83259719caea06e45aed77e41f97037123000fc331b4d5a4963ee940ca8",
+      "current": "516479778002983176199186f8181ec2ceee3e66f1568554a83c3e1f432b23a5"
+    },
+    "business_sha256": "efbec293af3c18603ed9c4d2ade1c204c6b386d63044e20ba3b7c1935402b160"
+  },
+  "summary_comparison": {
+    "code_size": {
+      "b": 55,
+      "c": 55,
+      "delta": 0.0
+    },
+    "files_total": {
+      "b": 4,
+      "c": 4,
+      "delta": 0.0
+    },
+    "lines_per_file": {
+      "b": 13.75,
+      "c": 13.75,
+      "delta": 0.0
+    },
+    "raw_lines": {
+      "b": 95,
+      "c": 95,
+      "delta": 0.0
+    }
+  },
+  "queries": [
+    {
+      "name": "code all",
+      "state": {
+        "type": "code",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.c",
+          20,
+          10,
+          -10
+        ],
+        [
+          "src/entered.c",
+          0,
+          15,
+          15
+        ],
+        [
+          "src/exited.c",
+          15,
+          0,
+          -15
+        ],
+        [
+          "src/growth.c",
+          10,
+          20,
+          10
+        ],
+        [
+          "src/unchanged.c",
+          10,
+          10,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "code entered",
+      "state": {
+        "type": "code",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/entered.c",
+          0,
+          15,
+          15
+        ]
+      ]
+    },
+    {
+      "name": "code exited",
+      "state": {
+        "type": "code",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/exited.c",
+          15,
+          0,
+          -15
+        ]
+      ]
+    },
+    {
+      "name": "code growth",
+      "state": {
+        "type": "code",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/entered.c",
+          0,
+          15,
+          15
+        ],
+        [
+          "src/growth.c",
+          10,
+          20,
+          10
+        ]
+      ]
+    },
+    {
+      "name": "code decrease",
+      "state": {
+        "type": "code",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.c",
+          20,
+          10,
+          -10
+        ],
+        [
+          "src/exited.c",
+          15,
+          0,
+          -15
+        ]
+      ]
+    },
+    {
+      "name": "code unchanged",
+      "state": {
+        "type": "code",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/unchanged.c",
+          10,
+          10,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "精确文件下钻",
+      "state": {
+        "type": "code",
+        "status": "all",
+        "exactFile": "src/growth.c"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/growth.c",
+          10,
+          20,
+          10
+        ]
+      ]
+    },
+    {
+      "name": "当前代码行至少10",
+      "state": {
+        "type": "code",
+        "status": "all",
+        "query": ".c",
+        "numberFilter": {
+          "field": "c",
+          "operator": "gte",
+          "value": 10
+        }
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.c",
+          20,
+          10,
+          -10
+        ],
+        [
+          "src/entered.c",
+          0,
+          15,
+          15
+        ],
+        [
+          "src/growth.c",
+          10,
+          20,
+          10
+        ],
+        [
+          "src/unchanged.c",
+          10,
+          10,
+          0
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "code": [
+      "entered",
+      "exited",
+      "growth",
+      "decrease",
+      "unchanged"
+    ],
+    "drilldown": "精确文件与数值筛选"
+  }
+}

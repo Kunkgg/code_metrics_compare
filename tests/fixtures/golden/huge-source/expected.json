@@ -1,0 +1,205 @@
+{
+  "review_status": "approved",
+  "description": "阈值固定为400，严格大于才超限。entered从等于阈值增长1，exited回落到等于阈值；growth/decrease分别在超限范围内增减10，unchanged保持不变。超限总数4不变，新增与退出各1仍须显示。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "037fc447244da45c2e4cb0d6151577834047b4888f5ab09280e47eee87172014",
+      "current": "bd1554262ad19e7345222e70afd5bfd4c6a93d3902212bb5b0932744d36daac3"
+    },
+    "business_sha256": "681ab354ee9a249347f91ac93358b48701254624207f4b2a1e1c1049df26e543"
+  },
+  "summary_comparison": {
+    "huge_non_headerfile_total": {
+      "b": 4,
+      "c": 4,
+      "delta": 0.0
+    },
+    "huge_non_headerfile_ratio": {
+      "b": 80,
+      "c": 80,
+      "delta": 0.0
+    },
+    "code_size": {
+      "b": 2041,
+      "c": 2041,
+      "delta": 0.0
+    }
+  },
+  "queries": [
+    {
+      "name": "hugeSource all",
+      "state": {
+        "type": "hugeSource",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.c",
+          420,
+          410,
+          -10
+        ],
+        [
+          "src/entered.c",
+          400,
+          401,
+          1
+        ],
+        [
+          "src/exited.c",
+          401,
+          400,
+          -1
+        ],
+        [
+          "src/growth.c",
+          410,
+          420,
+          10
+        ],
+        [
+          "src/unchanged.c",
+          410,
+          410,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "hugeSource entered",
+      "state": {
+        "type": "hugeSource",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/entered.c",
+          400,
+          401,
+          1
+        ]
+      ]
+    },
+    {
+      "name": "hugeSource exited",
+      "state": {
+        "type": "hugeSource",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/exited.c",
+          401,
+          400,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "hugeSource growth",
+      "state": {
+        "type": "hugeSource",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/entered.c",
+          400,
+          401,
+          1
+        ],
+        [
+          "src/growth.c",
+          410,
+          420,
+          10
+        ]
+      ]
+    },
+    {
+      "name": "hugeSource decrease",
+      "state": {
+        "type": "hugeSource",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/decrease.c",
+          420,
+          410,
+          -10
+        ],
+        [
+          "src/exited.c",
+          401,
+          400,
+          -1
+        ]
+      ]
+    },
+    {
+      "name": "hugeSource unchanged",
+      "state": {
+        "type": "hugeSource",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/unchanged.c",
+          410,
+          410,
+          0
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "hugeSource": [
+      "entered",
+      "exited",
+      "growth",
+      "decrease",
+      "unchanged"
+    ]
+  }
+}

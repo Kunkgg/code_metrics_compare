@@ -1,0 +1,280 @@
+{
+  "review_status": "approved",
+  "description": "函数圈复杂度独立候选：新增、退出、增长、减少、不变及指标隔离。",
+  "review": {
+    "reviewer": "用户",
+    "basis": "../review-acceptance.md",
+    "decision": "整体无异议",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "input_sha256": {
+      "baseline": "5af9fa16da3e5e96f4db0adc7de02bb76ab01b083915cdf13e51cba78f600b58",
+      "current": "8bbdc400b5059f34b932590f31ed90e1a9c3cda5a7614d1c975a39a78e2a6e91"
+    },
+    "business_sha256": "8ced551552e53e9d50833dca9cf965fb0463fc7e77d89c27cab4a11c9f0ecac6"
+  },
+  "summary_comparison": {
+    "methods_total": {
+      "b": 7,
+      "c": 7,
+      "delta": 0
+    },
+    "cyclomatic_complexity_total": {
+      "b": 52,
+      "c": 42,
+      "delta": -10
+    },
+    "cyclomatic_complexity_per_method": {
+      "b": 7.43,
+      "c": 6,
+      "delta": -1.43
+    },
+    "maximum_cyclomatic_complexity": {
+      "b": 14,
+      "c": 11,
+      "delta": -3
+    },
+    "huge_cyclomatic_complexity_total": {
+      "b": 1,
+      "c": 1,
+      "delta": 0
+    },
+    "huge_cyclomatic_complexity_ratio": {
+      "b": 14.29,
+      "c": 14.29,
+      "delta": 0
+    }
+  },
+  "queries": [
+    {
+      "name": "完整业务列表（默认 path:asc，同路径 name:asc）",
+      "state": {
+        "type": "cc",
+        "status": "all"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "cross_enter",
+          10,
+          11,
+          1
+        ],
+        [
+          "src/a.c",
+          "cross_exit_equal",
+          14,
+          10,
+          -4
+        ],
+        [
+          "src/a.c",
+          "grow",
+          3,
+          5,
+          2
+        ],
+        [
+          "src/a.c",
+          "new_only",
+          0,
+          2,
+          2
+        ],
+        [
+          "src/a.c",
+          "old_only",
+          7,
+          0,
+          -7
+        ],
+        [
+          "src/a.c",
+          "shrink",
+          8,
+          4,
+          -4
+        ],
+        [
+          "src/a.c",
+          "stable_other_changes",
+          6,
+          6,
+          0
+        ],
+        [
+          "src/b.c",
+          "moved",
+          4,
+          4,
+          0
+        ]
+      ]
+    },
+    {
+      "name": "entered 完整过滤结果",
+      "state": {
+        "type": "cc",
+        "status": "entered"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "new_only",
+          0,
+          2,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "exited 完整过滤结果",
+      "state": {
+        "type": "cc",
+        "status": "exited"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "old_only",
+          7,
+          0,
+          -7
+        ]
+      ]
+    },
+    {
+      "name": "growth 完整过滤结果",
+      "state": {
+        "type": "cc",
+        "status": "growth"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "cross_enter",
+          10,
+          11,
+          1
+        ],
+        [
+          "src/a.c",
+          "grow",
+          3,
+          5,
+          2
+        ],
+        [
+          "src/a.c",
+          "new_only",
+          0,
+          2,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "decrease 完整过滤结果",
+      "state": {
+        "type": "cc",
+        "status": "decrease"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "cross_exit_equal",
+          14,
+          10,
+          -4
+        ],
+        [
+          "src/a.c",
+          "old_only",
+          7,
+          0,
+          -7
+        ],
+        [
+          "src/a.c",
+          "shrink",
+          8,
+          4,
+          -4
+        ]
+      ]
+    },
+    {
+      "name": "unchanged 完整过滤结果",
+      "state": {
+        "type": "cc",
+        "status": "unchanged"
+      },
+      "fields": [
+        "path",
+        "name",
+        "b",
+        "c",
+        "delta"
+      ],
+      "rows": [
+        [
+          "src/a.c",
+          "stable_other_changes",
+          6,
+          6,
+          0
+        ],
+        [
+          "src/b.c",
+          "moved",
+          4,
+          4,
+          0
+        ]
+      ]
+    }
+  ],
+  "coverage": {
+    "status_filters": "all、entered、exited、growth、decrease、unchanged 均列出完整投影；状态可以重叠。",
+    "pairing": "root=/golden/project；按相对 path 与 name 配对，moved 起始行 50→250 仍为同一函数。",
+    "metric_isolation": "stable_other_changes 的有效行数 20→80 跨过另一度量阈值，但当前圈复杂度不变。",
+    "missing_side": "new_only/old_only 在同一个两侧均存在的文件中仅见于一侧，另一侧按本指标总量 0 比较；不推断磁盘新增或删除。",
+    "thresholds": "baseline=10，current=10；严格大于才超限，等于 current 阈值时不超限。",
+    "maximum": "最大值记录仅提供派生最大值，不作为普通函数或业务明细行。",
+    "ordinary_membership": "普通列表 entered/exited 按函数集合存在性；cross_enter/cross_exit_equal 穿越超限边界仅属于 growth/decrease，不属于普通列表的 entered/exited。"
+  }
+}
