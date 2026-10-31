@@ -5,12 +5,12 @@
     "reviewer": "用户",
     "basis": "../review-acceptance.md",
     "decision": "整体无异议",
-    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。",
+    "scope": "已人工浏览，整体业务场景和口径无异议；不额外推定逐项数值复核范围。本次追加确认仅交换 hugeMethod all 两行，按 path:asc 将 above/a.c 排在 above/b.c 前；数值及其余业务预期不变。",
     "input_sha256": {
       "baseline": "cf5a404c03c4bca9e6b4a1bcb6c958fe8cf9a5e66d8870ce50447f9ccfb2acc6",
       "current": "a76f6f1fcb82a3ae001e869c8aafad859425aae2c923f3279681b666630c33f1"
     },
-    "business_sha256": "57d69b5e2b5e10c6f49f9c5ec28acaf26ef60b8474f40f4809f1f853540b922c"
+    "business_sha256": "f6fe01dca902227a16632cf06628269b591a0cd15451fbe3a6c47c885b1bedc7"
   },
   "summary_comparison": {
     "huge_cyclomatic_complexity_total": {
@@ -368,18 +368,18 @@
       ],
       "rows": [
         [
-          "above/b.c",
-          "above",
-          51,
-          51,
-          0,
-          true
-        ],
-        [
           "above/a.c",
           "equal",
           50,
           50,
+          0,
+          true
+        ],
+        [
+          "above/b.c",
+          "above",
+          51,
+          51,
           0,
           true
         ]

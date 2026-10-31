@@ -40,7 +40,7 @@ uv run pytest
 - `output/`：生成数据、报告、截图和临时验证产物，继续由 Git 忽略。
 - 根目录 `AGENTS.md`、`GLOSSARY.md`：项目级 Agent 规范与领域术语。
 
-Golden Dataset 只验证对比业务逻辑，包含基线输入、当前输入和人工确认的预期输出。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [`tests/fixtures/golden/`](tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见保留在 [原始审核意见](tests/fixtures/golden/review-issues.md)。由 `uv run pytest tests/test_golden.py -q` 执行业务查询。当前参考 UI 的 414 项业务断言中，413 项通过；原 14 条函数排序、同名聚合及计数差距已修复并清空过期 xfail。剩余 `threshold-change / hugeMethod all` 是已批准排序预期与路径优先规范的冲突，保留真实失败，等待人工确认修订范围。统一原型已恢复，先完成全部指标、净影响及关联证据的小规模功能和测量，再统一进行大规模性能验收。Schema、公式、内容证据与校验器负例移入 [`tests/fixtures/validation/`](tests/fixtures/validation/README.md)，由独立测试执行。早期 `init_requirements.md`、`sample.json` 已从工作树移除，历史版本可用 `git show d1ebe80:文件名` 查阅。
+Golden Dataset 只验证对比业务逻辑，包含基线输入、当前输入和人工确认的预期输出。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [`tests/fixtures/golden/`](tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见保留在 [原始审核意见](tests/fixtures/golden/review-issues.md)。由 `uv run pytest tests/test_golden.py -q` 执行业务查询。当前参考 UI 的 414 项业务断言全部通过；原 14 条函数排序、同名聚合及计数差距已修复并清空过期 xfail。`threshold-change / hugeMethod all` 两行路径排序已获用户追加确认，预期顺序及审核摘要已同步，数值和两侧输入不变。统一原型已恢复，先完成全部指标、净影响及关联证据的小规模功能和测量，再统一进行大规模性能验收。Schema、公式、内容证据与校验器负例移入 [`tests/fixtures/validation/`](tests/fixtures/validation/README.md)，由独立测试执行。早期 `init_requirements.md`、`sample.json` 已从工作树移除，历史版本可用 `git show d1ebe80:文件名` 查阅。
 
 下列命令均在仓库根目录执行。
 

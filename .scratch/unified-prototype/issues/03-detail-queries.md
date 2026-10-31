@@ -43,7 +43,7 @@ Status: claimed
 
 验收修复已落实：路径优先排序、按侧同名集合总量及记录数已接入参考 UI 和 Worker，14 项旧 `strict xfail` 登记已清空。业务预期未改写。
 
-当前另有一条已批准预期冲突：`threshold-change / hugeMethod all` 未指定排序，入口默认 `path:asc`，但预期仍按名称把 `above/b.c:above` 放在 `above/a.c:equal` 前。参考 UI 与 Worker 均按路径优先返回；保留为真实失败，需人工确认后才能修订已批准预期及审核摘要。
+原另有一条排序预期冲突，现已获用户追加确认并消除：`threshold-change / hugeMethod all` 按默认 `path:asc` 将 `above/a.c:equal` 放在 `above/b.c:above` 前。仅交换两行顺序并更新审核范围及业务摘要，字段值、其他业务预期和两侧输入不变。最新完整 pytest 484 项、Worker 1,524 项全部通过；下方保留确认前测量历史。
 
 ## 边界
 
@@ -68,3 +68,5 @@ Status: claimed
 - 最终完整 pytest 仍为 483 通过、1 失败，唯一失败为排序预期冲突。Ruff、格式检查、Pyright 通过。
 - 逐次原始输出在 `output/unified-prototype/resume-*`。大规模、Windows／Edge 尚未执行，不以本机结果代替。
 - 源码归档分支 `spike/unified-prototype`，本轮提交标题“原型：接通小规模明细、净影响与完整分页证据”；恢复前基点 `de61d37`。
+
+追加确认：用户回复“yes”，仅交换 `threshold-change / hugeMethod all` 两行使 `above/a.c` 在前，更新审核范围及业务摘要。独立差异核对确认字段值、其余查询及两侧输入不变。完整 pytest 484 项、参考 UI 414 项业务断言、Worker 1,524 项检查全部通过，无 xfail。证据在 `output/unified-prototype/sort-approved-{pytest.txt,worker.json,verification.json}`；历史失败输出不覆盖。满规模、资源门槛及 Windows／Edge 等未验范围保持原登记。

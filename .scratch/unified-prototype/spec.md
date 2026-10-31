@@ -14,7 +14,7 @@ Status: claimed
 
 ## 阶段
 
-阶段 0 [基线记录](issues/01-baseline.md)与阶段 1 [文件／目录记录](issues/02-file-directory.md)已完成。用户本轮要求继续原型验证，恢复 `spike/unified-prototype` 上的小规模功能工作：先完成所有指标、净影响和关联证据的功能验证及逐次测量，再统一进行大规模测试。阶段 2 的原 14 条参考 UI 差距已修复，参考 UI 与 Worker 均剩 `threshold-change / hugeMethod all` 的排序预期冲突，保留为真实失败，不修改已批准业务预期、不新增 xfail。
+阶段 0 [基线记录](issues/01-baseline.md)与阶段 1 [文件／目录记录](issues/02-file-directory.md)已完成。用户本轮要求继续原型验证，恢复 `spike/unified-prototype` 上的小规模功能工作：先完成所有指标、净影响和关联证据的功能验证及逐次测量，再统一进行大规模测试。阶段 2 的原 14 条参考 UI 差距已修复；`threshold-change / hugeMethod all` 两行路径排序已获用户追加确认，业务预期及审核摘要已更新。参考 UI 414 项业务断言、Worker 1,524 项检查及完整 pytest 484 项均通过，未新增 xfail。
 
 13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [Golden Dataset](../../tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。原始审核意见见 [review-issues.md](../../tests/fixtures/golden/review-issues.md)。以下阶段内容保留，执行顺序调整为阶段 2–4 小规模功能与测量先行，阶段 5 统一满规模性能验收；阶段 2 原有 100k 重测一并后置。已有测量作为历史证据保留。
 
@@ -94,7 +94,7 @@ Status: claimed
 
 Golden 候选人工审核的通用修正：扫描明细字段统一为 `file_duplication`；所有对外业务浮点数（含均值、百分率、密度及 `_kloc`、差值和净影响）统一按十进制 Half-Up 四舍五入至两位小数，不能截断；内部保留未舍入分子／分母及精确值用于计算、比较、分类、筛选、排序和聚合，不能用显示舍入值分类。允许显示分项之和与显示总量存在舍入尾差。同文件同名函数按侧分别汇总后展示集合变化，并保留两侧记录数和“同名函数可能混淆”提示；不猜测逐函数配对，不输出歧义对象的确定超限进出。修订本身不代表批准；当前整体浏览确认的范围见下文，数据批准不构成实现或阶段验收通过。原始审核意见见 [review-issues.md](../../tests/fixtures/golden/review-issues.md)。历史阶段产物、哈希和测量证据保持原样，使用旧字段的数据在新入口验证前须重建。
 
-最新审核与当前工作状态：用户本轮已要求恢复原型验证，按先小规模全部功能、后统一大规模性能的顺序推进。原暂停记录作为历史决定保留；本轮证据见 [阶段 2](issues/03-detail-queries.md)。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [Golden Dataset](../../tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。Schema／生成约束已迁入 `tests/fixtures/validation/`。参考 UI 原 14 条函数排序、同名聚合及计数差距已修复，旧 `strict xfail` 登记已清空。当前 414 项业务断言中 413 项通过，1 项为 `threshold-change / hugeMethod all` 的已批准排序预期与路径优先规范冲突；保留真实失败，不据此判为实现验收通过。仅阈值不同（`threshold-change`）仍比较超大明细：在身份映射、数值和覆盖可靠时，按各侧阈值严格 `>` 判定，展示可确定的新增／退出超限、两侧数值及有意义的观测差值，明确提示“阈值变化，清单进出和数值变化不证明代码恶化或改善”。版本、映射、未知、歧义与覆盖限制继续适用；详情放开不等于净影响分解放开，阈值不可比等情形仍不输出确定净影响或排名。历史阶段产物、哈希与测量证据保持原样。
+最新审核与当前工作状态：用户本轮已要求恢复原型验证，按先小规模全部功能、后统一大规模性能的顺序推进。原暂停记录作为历史决定保留；本轮证据见 [阶段 2](issues/03-detail-queries.md)。13 组业务候选已获用户确认“已人工浏览、整体场景和口径无异议”，与原已明确 OK 的 `empty`、`comments-only` 合计 15 组，纳入 [Golden Dataset](../../tests/fixtures/golden/README.md)，metadata 标记为 `approved`，业务内容不变。批准范围仅为上述整体浏览确认，不据此认定逐值复核完成，也不等于实现验收。Schema／生成约束已迁入 `tests/fixtures/validation/`。参考 UI 原 14 条函数排序、同名聚合及计数差距已修复，旧 `strict xfail` 登记已清空。当前 414 项业务断言全部通过；`threshold-change / hugeMethod all` 两条结果已按用户追加确认改为路径优先，数值与其余预期不变，审核摘要已更新。该结果不等于满规模及跨平台验收通过。仅阈值不同（`threshold-change`）仍比较超大明细：在身份映射、数值和覆盖可靠时，按各侧阈值严格 `>` 判定，展示可确定的新增／退出超限、两侧数值及有意义的观测差值，明确提示“阈值变化，清单进出和数值变化不证明代码恶化或改善”。版本、映射、未知、歧义与覆盖限制继续适用；详情放开不等于净影响分解放开，阈值不可比等情形仍不输出确定净影响或排名。历史阶段产物、哈希与测量证据保持原样。
 
 用户确认：100k／1m 必须达标；200k／2m 探索上限；Windows 必须覆盖、无指定设备；本轮已知模拟结构，真实输入内部核验。其余保留原 PRD 约束及已确认 UI 行为。
 
@@ -109,6 +109,8 @@ Golden 候选人工审核的通用修正：扫描明细字段统一为 `file_dup
 - 每指标 20 次热操作，nearest-rank P95 范围 108.9–166.5 ms；接入前相同输入及 20 指标任务 P95 范围 86.4–166.7 ms。检查本身新增净影响与返回断言，原始逐次样本均保留，不将这组小规模范围比较扩大为满规模优化结论。每任务首次切换单独保存，不等同浏览器／OS 冷启动；OS 磁盘缓存未控制，浏览器进程树 RSS 未采集。
 - 完整 pytest：483 通过、1 失败；Ruff 检查／格式、Pyright、JS 语法与 diff 空白检查通过。
 
-唯一 Golden 失败：`threshold-change / hugeMethod all` 的预期把 `above/b.c:above` 放在 `above/a.c:equal` 前，但默认 `path:asc` 明确路径优先。实现按规范保持路径顺序；未改批准预期、未加 xfail。需人工确认只调整该两行顺序并更新审核摘要后，才能收口业务全绿验收。
+确认前唯一 Golden 失败：`threshold-change / hugeMethod all` 的预期把 `above/b.c:above` 放在 `above/a.c:equal` 前，但默认 `path:asc` 明确路径优先。当时保留真实失败并请求用户确认；现已按下方追加确认完成修订。
 
 原型源码与验证脚本继续归档在 `spike/unified-prototype`，本轮提交标题“原型：接通小规模明细、净影响与完整分页证据”作为上下文指针；本轮恢复前源码基点 `de61d37`。不把原型提升为正式产品。原始产物位于 `output/unified-prototype/resume-*`，环境及输入／源码／HTML／uv.lock SHA-256 在 `resume-environment.json`。大规模变化／分布矩阵、浏览器资源／长时、断网／注入完整回归及 Windows／Edge 仍未验收，规格状态保留 claimed。
+
+追加确认：用户回复“yes”，仅交换 `threshold-change / hugeMethod all` 两行使 `above/a.c` 在前，更新审核范围及业务摘要。独立差异核对确认字段值、其余查询及两侧输入不变。完整 pytest 484 项、参考 UI 414 项业务断言、Worker 1,524 项检查全部通过，无 xfail。证据在 `output/unified-prototype/sort-approved-{pytest.txt,worker.json,verification.json}`；历史失败输出不覆盖。满规模、资源门槛及 Windows／Edge 等未验范围保持原登记。

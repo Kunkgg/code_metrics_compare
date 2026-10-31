@@ -7,7 +7,7 @@ Status: claimed
 
 问题：同一三页 UI 下，能否让全部 12 项均值／比例在完整范围内计算净影响，并有界分页、精确下钻与返回？
 
-实现已接入，小规模计算检查通过；最终阶段验收仍受统一原型剩余 Golden 排序预期冲突、满规模与跨平台矩阵限制，不据此宣布整个原型完成。
+实现已接入，小规模计算检查通过；Golden 排序预期冲突已获用户追加确认并消除，最终阶段验收仍受满规模与跨平台矩阵限制，不据此宣布整个原型完成。
 
 ## 实现
 
@@ -22,7 +22,7 @@ Status: claimed
 
 `node scripts/prototype_checks/check-unified-impact.cjs`：722 项通过。预期来自独立原始整数及 BigInt 有理数计算，覆盖 12 项、全报告／目录／子目录／不存在范围、263 对象／53 页、完整顺序、总量守恒、抵消项、跨页标尺及各类受限情况。该入口执行实际计算源码及 snapshot，独立构造解码后的状态；真实内嵌 HTML 另外由 Golden Worker 与浏览器验证。
 
-`node scripts/prototype_checks/check-worker-business.cjs output/unified-prototype/resume-small tests/fixtures/golden/*/`：1,524 项中 1,523 项通过；其中原业务断言为 413／414，其余为两侧全量序列化汇总、阈值及最大值字段核对。唯一失败见 [03](03-detail-queries.md)，没有改写业务预期。
+`node scripts/prototype_checks/check-worker-business.cjs output/unified-prototype/resume-small tests/fixtures/golden/*/`：用户追加确认两行路径排序后，1,524 项全部通过；其中原业务断言为 414 项，其余为两侧全量序列化汇总、阈值及最大值字段核对。确认范围见 [03](03-detail-queries.md)，输入及业务数值不变。
 
 浏览器最终结果与逐次时间样本见 `output/unified-prototype/resume-browser-final.json`，文件任务结果见 `resume-browser-files-final.json`。首次切换和 20 次热操作分开保存；DOM 完成后再等待两帧。OS 磁盘缓存未控制，浏览器进程树 RSS 未采集，不宣称资源门槛或满规模通过。
 
