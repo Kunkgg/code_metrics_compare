@@ -187,3 +187,7 @@ Windows 可换成本机 Chrome／Edge 可执行文件路径，读取复制的报
 - 四例 CDP 断连集中于满规模浏览器高压场景（full-wide/full-deep 短测、full-mixed soak、full-mixed 证据浏览器），待诊断是浏览器进程崩溃（如渲染 OOM）还是自动化通道问题；修复后重跑失败项。
 
 Windows Chrome/Edge 与 macOS Edge 仍未测；上述失败未修复前，阶段 5 不得宣称任何满规模通过。
+
+### CDP 断连诊断（subagent，只读）
+
+四例断连定位为 agent-browser daemon 0.41.0 ↔ Chrome 156 DevTools WebSocket 非确定性断开（H1：0.41.0 源码中该错误唯一现实路径是 reader loop 退出并清空 pending）；次候选 H2 为 Chrome 156 DevTools 回归（10-29 升级后首个 full 批次触发，时序吻合但无升级前同规模对照）。渲染 OOM／浏览器崩溃／系统 jetsam 均排除：4/4 案例页面 renderer pid 全程稳定，断连时完整树 RSS 1.72–2.36 GiB，DiagnosticReports 无 Chrome 条目；失败为概率性（同窗口 full 量级约 4/58 会话），失败命令均为对 14.3 MB 报告页的 TASK_JS eval，实耗 5.8–8.8s 低于 30s 超时。结论：属测量自动化通道问题，非原型页面失败。最小复现（40 冷＋daemon debug 及 Chrome for Testing 155 对照）已写入分析，待 deep oracle 修复结束后顺序执行。证据：`output/unified-prototype/stage5-cdp-diagnosis/{analysis.md,evidence.json}`。
