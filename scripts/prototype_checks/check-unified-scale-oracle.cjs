@@ -9,6 +9,68 @@ const metrics=[['code_size','code'],['lines_per_file','code'],['lines_per_method
 const thresholds={hugeHeader:'huge_headerfile',hugeSource:'huge_non_headerfile',hugeMethod:'huge_method',hugeCC:'huge_cyclomatic_complexity',folders:'huge_folder'};
 const text=(a,b)=>a<b?-1:a>b?1:0,header=p=>/\.(h|hh|hpp|hxx)$/.test(p),sha=()=>crypto.createHash('sha256');
 const digestFile=async file=>{const h=sha();for await(const chunk of fs.createReadStream(file))h.update(chunk);return h.digest('hex');};
+// 超大 raw JSON（deep 组 ~567MB，超 V8 单字符串上限 0x1fffffe8）禁止整文件 decode：分块 Buffer 扫描，
+// 字节级状态机按对象成员/数组元素切出自包含 JSON 值区间，逐片 JSON.parse——与整文件 parse 语义恒等。
+// 字符串扫描只在 ASCII 结构字节（0x22/0x5c）上转移，多字节 UTF-8 连续字节（>=0x80）不干扰状态。
+class RawJsonScanner{
+ constructor(file,chunkBits=24){this.fd=fs.openSync(file,'r');this.size=fs.fstatSync(this.fd).size;this.chunk=1<<chunkBits;this.buf=Buffer.allocUnsafe(this.chunk);this.bufStart=0;this.bufLen=0;}
+ close(){fs.closeSync(this.fd);}
+ byteAt(at){return this.readRange(at,at+1)[0];}
+ readRange(start,end){
+  if(start>=this.bufStart&&end<=this.bufStart+this.bufLen)return this.buf.subarray(start-this.bufStart,end-this.bufStart);
+  if(end-start<=this.chunk){const want=Math.min(this.chunk,Math.max(1,this.size-start));this.bufLen=fs.readSync(this.fd,this.buf,0,want,start);this.bufStart=start;assert.ok(this.bufLen>=end-start,'raw JSON 区间读取不足');return this.buf.subarray(0,end-start);}
+  const out=Buffer.allocUnsafe(end-start);fs.readSync(this.fd,out,0,end-start,start);return out;}
+ parseRange(start,end){return JSON.parse(this.readRange(start,end).toString('utf8'));}
+ *members(start,end){assert.ok(this.byteAt(start)===0x7b,'对象切片必须以 { 开始');yield*this.pairs(start,end,false);}
+ *elements(start,end){assert.ok(this.byteAt(start)===0x5b,'数组切片必须以 [ 开始');yield*this.pairs(start,end,true);}
+ *pairs(start,end,isArray){
+  // 扫描缓冲为局部变量：生成器在 yield 处挂起期间，同一实例的其它生成器/消费方可独立调用 readRange 而不污染本扫描的缓冲。
+  // fd 上的 readSync 带显式位置，交错读安全。
+  const fd=this.fd,chunk=this.chunk,scanBuf=Buffer.allocUnsafe(chunk);let bufStart=0,bufLen=0;
+  const ensure=at=>{if(at<bufStart||at>=bufStart+bufLen){const want=Math.min(chunk,Math.max(1,this.size-at));bufLen=fs.readSync(fd,scanBuf,0,want,at);bufStart=at;assert.ok(bufLen>0,'raw JSON 扫描越界');}};
+  // 状态：0 期待键引号/闭括号；1 键字符串内；6 键后期望':'；2 期待值首字符；3 容器值内部；7 字符串值内部；8 标量值内部；5 标量尾空白；4 值后期望','/闭括号
+  let at=start+1,inStr=false,esc=false,depth=0,st=isArray?2:0,keyStart=0,keyEnd=0,valStart=0,valEnd=0;
+  while(at<end){
+   ensure(at);const b=scanBuf,base=bufStart,stop=Math.min(end,base+bufLen)-base;let i=at-base;
+   while(i<stop){
+    const pos=base+i,c=b[i];at=pos+1;i++;
+    if(inStr){if(esc)esc=false;else if(c===0x5c)esc=true;else if(c===0x22){inStr=false;if(st===1){keyEnd=pos+1;st=6;}else if(st===7){yield{keyStart,keyEnd,valueStart:valStart,valueEnd:pos+1};st=4;}}continue;}
+    if(st===0){
+     if(c===0x22){keyStart=pos;inStr=true;esc=false;st=1;}
+     else if(c===0x7d){assert.ok(!isArray);at=end;break;}
+     else assert.ok(c===0x20||c===0x09||c===0x0a||c===0x0d,'期望对象键或}，得到字节 '+c+' @'+pos);
+    }else if(st===6){
+     if(c===0x3a)st=2;
+     else assert.ok(c===0x20||c===0x09||c===0x0a||c===0x0d,'期望:，得到字节 '+c+' @'+pos);
+    }else if(st===2){
+     if(c===0x22){valStart=pos;inStr=true;esc=false;st=7;}
+     else if(c===0x5b||c===0x7b){valStart=pos;depth=1;st=3;}
+     else if(c===0x5d&&isArray){at=end;break;}
+     else if(c===0x2d||(c>=0x30&&c<=0x39)||c===0x74||c===0x66||c===0x6e){valStart=pos;st=8;}
+     else assert.ok(c===0x20||c===0x09||c===0x0a||c===0x0d,'期望值首字符，得到字节 '+c+' @'+pos);
+    }else if(st===3){
+     if(c===0x22){inStr=true;esc=false;}
+     else if(c===0x7b||c===0x5b)depth++;
+     else if(c===0x7d||c===0x5d){depth--;if(depth===0){yield{keyStart,keyEnd,valueStart:valStart,valueEnd:pos+1};st=4;}}
+    }else if(st===8){
+     if(c===0x2c||c===0x7d||c===0x5d){at=pos;i--;yield{keyStart,keyEnd,valueStart:valStart,valueEnd:pos};st=4;}
+     else if(c===0x20||c===0x09||c===0x0a||c===0x0d){yield{keyStart,keyEnd,valueStart:valStart,valueEnd:pos};st=5;}
+    }else if(st===5){
+     if(c===0x2c||c===0x7d||c===0x5d){at=pos;i--;st=4;}
+     else assert.ok(c===0x20||c===0x09||c===0x0a||c===0x0d,'标量值后期望,或闭合，得到字节 '+c+' @'+pos);
+    }else if(st===4){
+     if(c===0x2c)st=isArray?2:0;
+     else if(c===0x7d&&isArray===false){at=end;break;}
+     else if(c===0x5d&&isArray){at=end;break;}
+     else assert.ok(c===0x20||c===0x09||c===0x0a||c===0x0d,'期望,或闭合，得到字节 '+c+' @'+pos);
+    }
+   }
+  }
+  assert.ok(at>=end,'JSON 切片在闭合前耗尽');
+ }
+ topStart(){let s=0;while(s<this.size){const c=this.byteAt(s);if(c===0x20||c===0x09||c===0x0a||c===0x0d)s++;else break;}assert.ok(this.byteAt(s)===0x7b,'raw 报告顶层必须是对象');return s;}
+ *topMembers(){yield*this.members(this.topStart(),this.size);}
+}
 // 固定列和逐行换行构成公开的流式摘要协议；包含身份、原值、状态和同名记录数。
 const projection=r=>[r.path,r.name,r.b,r.c,r.delta,r.flags,r.changed,r.ambiguous,r.transitionKnown,r.beforeCount??null,r.afterCount??null,r.line??null,r.thresholdChanged];
 function normalNumber(value,label){assert.ok(Number.isFinite(value),`${label}：normal fixture 不允许未知数值`);return value;}
@@ -24,39 +86,45 @@ async function main(){
  const result={protocol:'raw-scale-oracle-1',nodeVersion:process.version,platform:process.platform,arch:process.arch,scriptSha256:await digestFile(__filename),started:new Date().toISOString(),input,htmlPath,limitation:'仅 Node VM 结果正确性与已保存DOM样本回放核验；不执行DOM、不代表浏览器交互或性能验收；不调用 capacity query 或 bench。',projection:['path','name','b','c','delta','flags','changed','ambiguous','transitionKnown','beforeCount','afterCount','line','thresholdChanged'],metricMapping:metrics.map(([metric,type])=>({metric,type,taskPrefix:type+'.'})),inputs:{},tasks:[],failed:0};
  const save=()=>fs.writeFileSync(path.join(out,'result.json'),JSON.stringify(result,null,2)+'\n');
  try{
- const reports={};for(const side of ['baseline','current']){const file=path.join(input,side+'.json');result.inputs[side]={sha256:await digestFile(file),bytes:fs.statSync(file).size};reports[side]=JSON.parse(fs.readFileSync(file,'utf8'));}
+ const scanners={},summaries={},detailSpans={},sideKeys={};
+ for(const side of ['baseline','current']){const file=path.join(input,side+'.json');result.inputs[side]={sha256:await digestFile(file),bytes:fs.statSync(file).size};
+  const sc=new RawJsonScanner(file);scanners[side]=sc;const spans={};
+  for(const m of sc.topMembers()){const k=sc.parseRange(m.keyStart,m.keyEnd);if(k==='summary_metrics')summaries[side]=sc.parseRange(m.valueStart,m.valueEnd);else if(k==='detail_metrics')for(const d of sc.members(m.valueStart,m.valueEnd))spans[sc.parseRange(d.keyStart,d.keyEnd)]=[d.valueStart,d.valueEnd];}
+  assert.ok(summaries[side]&&spans.file_sizes&&spans.huge_folders&&spans.file_duplication&&spans.method_metrics&&spans.unsafe_functions&&spans.redundant_code,'raw 报告缺少必需 detail_metrics 键：'+side);
+  detailSpans[side]=spans;sideKeys[side]=[...sc.members(...spans.file_sizes)].map(m=>sc.parseRange(m.keyStart,m.keyEnd));
+ }
  const manifest=JSON.parse(fs.readFileSync(path.join(input,'manifest.json'),'utf8')),prefix=manifest.root.replace(/\/$/,'')+'/';
  const rel=p=>{if(p===prefix.slice(0,-1))return '';assert.ok(p.startsWith(prefix),'扫描根不匹配：'+p);return p.slice(prefix.length);};
- const paths=[...new Set(Object.values(reports).flatMap(r=>Object.keys(r.detail_metrics.file_sizes).map(rel)))].sort(text),fileMap=new Map(paths.map((p,i)=>[p,i]));
+ const paths=[...new Set(['baseline','current'].flatMap(s=>sideKeys[s].map(rel)))].sort(text),fileMap=new Map(paths.map((p,i)=>[p,i]));
  const files=paths.map(p=>({path:p,b:null,c:null,db:0,dc:0,mb:0,mc:0})),methods=new Map(),positions={unsafe:new Map(),redundant:new Map()},directories=new Map();
  const sideStats={};
  for(const [side,tag] of [['baseline','b'],['current','c']]){
-  const d=reports[side].detail_metrics,counts=new Map();
-  for(const [full,triple] of Object.entries(d.file_sizes)){
+  const sc=scanners[side],spans=detailSpans[side],counts=new Map();
+  for(const m of sc.members(...spans.file_sizes)){
+   const full=sc.parseRange(m.keyStart,m.keyEnd),triple=sc.parseRange(m.valueStart,m.valueEnd);
    const p=rel(full),f=files[fileMap.get(p)];for(const v of triple)normalNumber(v,full);f[tag]=triple[0];f['d'+tag]=triple[2];
    const parts=p.split('/');for(let i=0;i<parts.length;i++){const parent=parts.slice(0,i).join('/');if(!counts.has(parent))counts.set(parent,new Set());counts.get(parent).add(parts[i]);}
   }
   for(const [p,members] of counts){if(!directories.has(p))directories.set(p,{path:p,b:0,c:0,kb:null,kc:null});directories.get(p)[tag]=members.size;}
-  for(const [full,value] of Object.entries(d.huge_folders)){normalNumber(value,full);const dir=directories.get(rel(full));assert.ok(dir,'目录未出现在扫描中');dir['k'+tag]=value;}
-  assert.ok(d.file_duplication&&typeof d.file_duplication==='object'&&!Array.isArray(d.file_duplication),'缺少 file_duplication');
-  for(const group of Object.values(d.file_duplication))for(const full of group){const f=files[fileMap.get(rel(full))];assert.ok(f&&f[tag]!==null,'重复成员必须属于扫描文件');f['m'+tag]=1;}
-  let ordinary=0;for(const m of d.method_metrics){if(!Object.hasOwn(m,'file_name'))continue;ordinary++;
-   const p=rel(m.file_name),key=JSON.stringify([p,m.method_name]);assert.ok(fileMap.has(p),'函数文件不在扫描中');
-   if(!methods.has(key))methods.set(key,{path:p,name:m.method_name,b:0,c:0,bc:0,cc:0,bn:0,cn:0,bh:false,ch:false,bx:false,cx:false});
-   const g=methods.get(key),ln=normalNumber(m.nbnc_loc,key),cc=normalNumber(m.cyclomatic_complexity,key),limit=reports[side].summary_metrics.huge_threshold;
+  for(const m of sc.members(...spans.huge_folders)){const full=sc.parseRange(m.keyStart,m.keyEnd),value=sc.parseRange(m.valueStart,m.valueEnd);normalNumber(value,full);const dir=directories.get(rel(full));assert.ok(dir,'目录未出现在扫描中');dir['k'+tag]=value;}
+  assert.ok(spans.file_duplication&&sc.byteAt(spans.file_duplication[0])===0x7b,'缺少 file_duplication');
+  for(const m of sc.members(...spans.file_duplication))for(const full of sc.parseRange(m.valueStart,m.valueEnd)){const f=files[fileMap.get(rel(full))];assert.ok(f&&f[tag]!==null,'重复成员必须属于扫描文件');f['m'+tag]=1;}
+  let ordinary=0;for(const el of sc.elements(...spans.method_metrics)){const mm=sc.parseRange(el.valueStart,el.valueEnd);if(!Object.hasOwn(mm,'file_name'))continue;ordinary++;
+   const p=rel(mm.file_name),key=JSON.stringify([p,mm.method_name]);assert.ok(fileMap.has(p),'函数文件不在扫描中');
+   if(!methods.has(key))methods.set(key,{path:p,name:mm.method_name,b:0,c:0,bc:0,cc:0,bn:0,cn:0,bh:false,ch:false,bx:false,cx:false});
+   const g=methods.get(key),ln=normalNumber(mm.nbnc_loc,key),cc=normalNumber(mm.cyclomatic_complexity,key),limit=summaries[side].huge_threshold;
    g[tag]+=ln;g[tag+'c']+=cc;g[tag+'n']++;g[tag+'h'] ||= ln>limit.huge_method;g[tag+'x'] ||= cc>limit.huge_cyclomatic_complexity;
   }
-  assert.equal(ordinary,reports[side].summary_metrics.methods_total,'全部普通函数数量');sideStats[side]={files:Object.keys(d.file_sizes).length,ordinaryMethods:ordinary};
-  for(const [full,names] of Object.entries(d.unsafe_functions))for(const [name,lines] of Object.entries(names))for(const line of lines){const p=rel(full),key=JSON.stringify([p,name,line]);if(!positions.unsafe.has(key))positions.unsafe.set(key,{path:p,name,line,b:0,c:0});positions.unsafe.get(key)[tag]=1;}
-  for(const [full,lines] of Object.entries(d.redundant_code)){const seen=new Map();for(const line of lines){const p=rel(full),n=seen.get(line)||0;seen.set(line,n+1);const key=JSON.stringify([p,line,n]);if(!positions.redundant.has(key))positions.redundant.set(key,{path:p,name:'冗余代码',line,occurrence:n,b:0,c:0});positions.redundant.get(key)[tag]=1;}}
-  // 释放巨大 raw 记录；所有预期需要的原始值和成员关系已经独立汇总。
-  delete d.method_metrics;
+  assert.equal(ordinary,summaries[side].methods_total,'全部普通函数数量');sideStats[side]={files:sideKeys[side].length,ordinaryMethods:ordinary};
+  for(const m of sc.members(...spans.unsafe_functions)){const full=sc.parseRange(m.keyStart,m.keyEnd);for(const [name,lines] of Object.entries(sc.parseRange(m.valueStart,m.valueEnd)))for(const line of lines){const p=rel(full),key=JSON.stringify([p,name,line]);if(!positions.unsafe.has(key))positions.unsafe.set(key,{path:p,name,line,b:0,c:0});positions.unsafe.get(key)[tag]=1;}}
+  for(const m of sc.members(...spans.redundant_code)){const full=sc.parseRange(m.keyStart,m.keyEnd),lines=sc.parseRange(m.valueStart,m.valueEnd);const seen=new Map();for(const line of lines){const p=rel(full),n=seen.get(line)||0;seen.set(line,n+1);const key=JSON.stringify([p,line,n]);if(!positions.redundant.has(key))positions.redundant.set(key,{path:p,name:'冗余代码',line,occurrence:n,b:0,c:0});positions.redundant.get(key)[tag]=1;}}
  }
+ for(const side of ['baseline','current'])scanners[side].close();
  result.raw=sideStats;
  const methodRows=[...methods.values()].sort((a,b)=>text(a.path,b.path)||text(a.name,b.name));methods.clear();
  const positionRows=Object.fromEntries(Object.entries(positions).map(([type,map])=>[type,[...map.values()].sort((a,b)=>text(a.path,b.path)||(type==='unsafe'?text(a.name,b.name):0)||a.line-b.line||(a.occurrence||0)-(b.occurrence||0))]));
  const folderRows=[...directories.values()].sort((a,b)=>text(a.path,b.path));
- const limits=type=>['baseline','current'].map(s=>normalNumber(reports[s].summary_metrics.huge_threshold[thresholds[type]],type));
+ const limits=type=>['baseline','current'].map(s=>normalNumber(summaries[s].huge_threshold[thresholds[type]],type));
  function expected(type){
   const method=['methodLines','cc','hugeMethod','hugeCC'].includes(type),position=['unsafe','redundant'].includes(type),folder=type==='folders',cc=type==='cc'||type==='hugeCC',threshold=thresholds[type],lim=threshold?limits(type):null;
   const rows=[];for(const raw of method?methodRows:position?positionRows[type]:folder?folderRows:files){
@@ -129,4 +197,5 @@ async function main(){
  result.finished=new Date().toISOString();result.taskCount=result.tasks.length;result.pass=result.failed===0;save();process.exitCode=result.failed?1:0;
  }catch(error){result.error=error.stack;result.pass=false;save();throw error;}
 }
-main().catch(error=>{console.error(error);process.exitCode=1;});
+if(require.main===module)main().catch(error=>{console.error(error);process.exitCode=1;});
+module.exports={RawJsonScanner};
