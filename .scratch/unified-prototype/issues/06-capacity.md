@@ -165,3 +165,5 @@ Windows 可换成本机 Chrome／Edge 可执行文件路径，读取复制的报
 ## Comments
 
 接手后按指标将独立核验结果保存在产物目录，主记录只保留结论、失败和证据路径。完整查询／净影响／证据正确性未完成前，不根据时延单独认定性能通过。
+
+净影响满规模验证工具小规模校准（subagent）：`check-unified-scale-impact.cjs` 修订后 12 指标、24 范围组合、136 个排名对象、96 次分页请求 0 失败；页数、分页对象数值、范围三类旧脚本漏检的故障注入全部检出，红绿案例退出码符合预期，独立预期聚合与相减改用 BigInt。未测：真实第 50/51 页、wide/deep 范围与满规模执行；小故事最大实际页数为 3。证据：`output/unified-prototype/stage5-handoff-impact-review/{review.md,review-summary.json}`。未改冻结 runtime。
