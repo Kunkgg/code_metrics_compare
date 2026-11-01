@@ -5,7 +5,9 @@ Status: claimed
 
 ## 当前结论
 
-阶段 5 本机满规模验证已执行完毕（首轮＋重跑＋三面真实失败修复），**仍不构成完整验收**：Windows Chrome/Edge 与 macOS Edge 未测，headed 未采，若干采样覆盖限制保留。最终状态：
+范围更新（本轮用户确认）：Windows Chrome／Edge 与 macOS Edge 不再纳入验收要求，下文历史章节中的相关表述为当时状态。
+
+阶段 5 本机满规模验证已执行完毕（首轮＋重跑＋三面真实失败修复），**仍不构成完整验收**：headed 未采，若干采样覆盖限制保留。最终状态：
 
 - 短测：十组全部 20 冷／20 热完成（首轮 8 组＋重跑 full-wide/full-deep）；十组完整明细 oracle 均 334/0 通过（矩阵内 7 组、deep 修复 3 组、full-wide/full-deep 另以成功测量重绑）。最慢记录：首轮 hot `methods-absent` 649.4ms、重跑 cold 639.2ms、证据浏览器 400.2ms，均在各自观测上限内。
 - 长时：full-mixed 1,803.7s 跑满（重跑），峰值增量 RSS 0.81 GiB，趋势中位 1965→1708 MiB 下降。
@@ -169,7 +171,7 @@ Windows 可换成本机 Chrome／Edge 可执行文件路径，读取复制的报
 
 容量脚本和矩阵驱动的 Ruff、格式检查、Pyright 已通过。新写的明细 oracle、12 项净影响、证据集合／浏览器，以及生成管线和汇总判定，分别交给独立 subagent 做轻量审查与小数据校准；尚未返回的验证不计通过。对应证据目录为 `output/unified-prototype/stage5-handoff-{oracle,impact,evidence,tools}-review/`。
 
-分布口径修正：现有 wide 的每 bucket 约 8 文件、上层约 12,500 个直接子目录；mixed 的 src/bulk 约 33,333 个直接文件。当前输入不包含“100,000 个直属文件”场景。重复片段大组 10,000 成员、重复文件大组约 1,000 成员。200k／2m 尚未执行，Windows Chrome／Edge 与 macOS Edge 仍未测。
+分布口径修正：现有 wide 的每 bucket 约 8 文件、上层约 12,500 个直接子目录；mixed 的 src/bulk 约 33,333 个直接文件。当前输入不包含“100,000 个直属文件”场景。重复片段大组 10,000 成员、重复文件大组约 1,000 成员。200k／2m 尚未执行。
 
 ## Comments
 
@@ -195,7 +197,7 @@ Windows 可换成本机 Chrome／Edge 可执行文件路径，读取复制的报
 - 证据计划执行 4/6：small-story-proof 288/0、小规模烟测、full-mixed-proof 288/0 通过；full-mixed-browser rc=1（冷 1/20、热 15/20 CDP 断连）按非零即停规则中止，full-wide-proof/browser 未执行；工具计划按规则跳过。
 - 四例 CDP 断连集中于满规模浏览器高压场景（full-wide/full-deep 短测、full-mixed soak、full-mixed 证据浏览器），待诊断是浏览器进程崩溃（如渲染 OOM）还是自动化通道问题；修复后重跑失败项。
 
-Windows Chrome/Edge 与 macOS Edge 仍未测；上述失败未修复前，阶段 5 不得宣称任何满规模通过。
+上述失败未修复前，阶段 5 不得宣称任何满规模通过。
 
 ### CDP 断连诊断（subagent，只读）
 
