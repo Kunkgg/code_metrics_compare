@@ -195,3 +195,7 @@ Windows Chrome/Edge 与 macOS Edge 仍未测；上述失败未修复前，阶段
 ### deep 组 oracle 修复（subagent）
 
 根因：deep 输入 `baseline/current.json` 约 567,702,773 字节（纯 ASCII），超 V8 单字符串上限 536,870,888 字符，oracle 整读 JSON 即 `ERR_STRING_TOO_LONG`（<0.5s 快失败）；full-mixed 输入 366MB 在限内放矩阵成功，完全解释 3 败 1 成。修复（仅 `check-unified-scale-oracle.cjs`，+87/−18）：新增 `RawJsonScanner`——16MiB 分块 `readSync` ＋字节级 JSON 状态机按自包含成员/元素切片流式消费；修复前核对 Worker 协议，完整序列 SHA256 为 oracle 进程内自洽口径，html／inputs 摘要走既有流式 `digestFile`，字节序不变。等价性：小夹具×4 ＋ full-mixed 366MB 真实 differential（100 万元素全扫、抽样 1100 恒等）全绿；differential 过程另修扫描器两 bug（块内偏移与绝对位置混用、嵌套迭代共享缓冲污染）。前任“depth 语义错误”线索证伪（目录聚合与 Worker uiMembers 语义逐条一致）。结果：low/mid/full-deep 各 334/0 通过（full-deep 短测虽败但 HTML artifact 完整、实测绑定断言全过），full-mixed 回归 334/0 默认行为未破坏。至此十组完整 oracle 全部通过（矩阵内 7 组＋本修复 3 组）。证据：`output/unified-prototype/stage5-deep-oracle-fix/{FIX-NOTES.md,PROGRESS.json,result-summary.json,red-low-deep.stderr.log,diff-full-mixed-baseline.log}` 及各绿证据目录。未改冻结 runtime。
+
+### CDP 复现判定（subagent）
+
+分支 A（Chrome 156，40 冷）：cold-28 第 8 条 TASK_JS eval 复现 `CDP response channel closed`（1/28），daemon 同秒日志 `[cdp] WebSocket Error: Connection reset without closing handshake`，进程树稳定；分支 B（Chrome for Testing 155）：cold-16 同位置同错误同日志（1/16），模式逐字一致。判定：H1 成立且定性为 daemon↔Chrome DevTools WebSocket 被 IO 层 reset（非 Close 帧）；H2 不成立（155/156 均触发，非版本特异）；H3（daemon 内部问题）升为首要待查。重跑策略：换浏览器版本无效，须在测量层加会话级重试（失败会话丢弃、新会话补足、单独标记并保留失败证据）。证据：`output/unified-prototype/stage5-cdp-repro/{verdict.md,verdict.json}` 及 A/B 分支 daemon 日志。复现均为诊断证据，不计入性能验收。
