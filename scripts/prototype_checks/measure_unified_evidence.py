@@ -18,6 +18,81 @@ from scripts.prototype_checks.measure_unified_capacity import (
 )
 from scripts.prototype_checks.run_baseline import ROOT, dump, fingerprint
 
+# 页面测量探针的就绪等待窗口；ready>10s 门槛仍在就绪后由 Python 侧判定。
+STARTUP_WAIT_TIMEOUT_MS = 30000
+
+
+class StartupProbeError(RuntimeError):
+    """页面测量探针缺失/未就绪的结构化 startup 失败。
+
+    startup（已序列化的部分）与页面状态快照附在实例属性上，
+    调用方应将其存入 run["startup"] 后再让会话按普通失败语义停止。
+    """
+
+    def __init__(self, message: str, startup: dict[str, Any], snapshot: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.startup = startup
+        self.snapshot = snapshot
+
+
+def page_state_snapshot(browser: CapacityBrowser) -> dict[str, Any]:
+    """探针异常时尽力抓取页面状态快照；抓取失败不掩盖原错误。"""
+    try:
+        return browser.evaluate(
+            "({readyState:document.readyState,"
+            "interactiveReady:document.documentElement.classList.contains('interactive-ready'),"
+            "probeType:typeof window.__prototypeMeasure,"
+            "probeKeys:window.__prototypeMeasure instanceof Object"
+            "?Object.keys(window.__prototypeMeasure):null,"
+            "title:document.title,scripts:document.scripts.length,"
+            "bodyChildren:document.body?document.body.children.length:null})"
+        )
+    except Exception as error:
+        return {"snapshotError": str(error)}
+
+
+def open_report_checked(browser: CapacityBrowser, report: Path) -> dict[str, Any]:
+    """打开报告，等待测量探针存在且就绪后序列化 startup。
+
+    基线 Browser.open_report 的 wait 条件
+    `window.__prototypeMeasure?.readyPaintMs !== null` 在探针对象缺失时恒真
+    （undefined !== null），未真正等待页面就绪；探针缺失时序列化结果缺 probe
+    键，调用方裸取会以 KeyError 逃逸（stage5-handoff-evidence-exec-2 第 20
+    冷会话）。此处要求对象存在且 readyPaintMs 非空（带超时），缺失时抛
+    结构化 StartupProbeError（含页面状态快照）。
+    """
+    browser.sampler.phase = "report"
+    browser.call("open", report.as_uri())
+    try:
+        browser.call(
+            "wait",
+            "--timeout",
+            str(STARTUP_WAIT_TIMEOUT_MS),
+            "--fn",
+            "window.__prototypeMeasure && window.__prototypeMeasure.readyPaintMs !== null"
+            " && document.documentElement.classList.contains('interactive-ready')",
+        )
+    except Exception as error:
+        raise StartupProbeError(
+            f"等待页面测量探针超时或失败：{error}",
+            startup={},
+            snapshot=page_state_snapshot(browser),
+        ) from error
+    startup = browser.evaluate(
+        "(async () => ({probe:window.__prototypeMeasure,"
+        "navigation:performance.getEntriesByType('navigation')[0].toJSON(),"
+        "browserVersion:navigator.userAgentData"
+        " ? await navigator.userAgentData.getHighEntropyValues(['fullVersionList']) : null}))()"
+    )
+    probe = startup.get("probe")
+    if not isinstance(probe, dict) or probe.get("readyPaintMs") is None:
+        raise StartupProbeError(
+            "startup序列化缺少probe或readyPaintMs未就绪（页面测量探针缺失）",
+            startup=startup,
+            snapshot=page_state_snapshot(browser),
+        )
+    return startup
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -93,7 +168,7 @@ def main() -> None:
         *sorted((ROOT / "prototypes").rglob("*.py")),
     ]
     result: dict[str, Any] = {
-        "protocol": "scale-evidence-DOM-2",
+        "protocol": "scale-evidence-DOM-3",
         "command": sys.argv,
         "smoke": args.smoke,
         "artifact": fingerprint(report),
@@ -109,6 +184,9 @@ def main() -> None:
             "agent-browser与Chrome DevTools的WebSocket通道偶发reset（判定见stage5-cdp-repro/verdict.md）："
             "命中签名的失败会话整体丢弃，关闭残留会话后以新profile重建同编号会话重跑（每会话最多重试3次）；"
             "重试登记于channelRetries、被弃产物保留在discarded/，重试会话的计时与P95语义与首次一致",
+            "startup等待要求页面测量探针存在且readyPaintMs非空（30秒超时）："
+            "探针缺失/未就绪时会话以结构化startup失败停止（startup内含probeFailure页面状态快照），"
+            "不再以裸KeyError逃逸；该失败非通道签名，不触发会话重试",
         ],
     }
     failed = False
@@ -136,7 +214,14 @@ def main() -> None:
             failure: BaseException | None = None
             try:
                 run["browser"] = browser.start()
-                run["startup"] = browser.open_report(report)
+                try:
+                    run["startup"] = open_report_checked(browser, report)
+                except StartupProbeError as error:
+                    run["startup"] = {
+                        **error.startup,
+                        "probeFailure": {"error": str(error), "pageState": error.snapshot},
+                    }
+                    raise
                 if run["startup"]["probe"]["readyPaintMs"] > 10000:
                     raise RuntimeError("就绪超过10秒门槛")
                 for mode, batches in (("cold", 1), ("hot", args.hot_samples if index == 0 else 0)):

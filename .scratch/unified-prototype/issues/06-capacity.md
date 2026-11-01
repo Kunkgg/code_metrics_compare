@@ -214,3 +214,11 @@ Windows Chrome/Edge 与 macOS Edge 仍未测；上述失败未修复前，阶段
 - 阶段4：full-mixed-browser 重跑 exit 1：第 20 冷会话 startup 时 `window.__prototypeMeasure` 未定义，序列化缺 `probe` 键致 `KeyError`（非通道签名，不触发重试）；19/20 会话已采样，证据保留。同时确认 `open_report` 等待条件 `__prototypeMeasure?.readyPaintMs !== null` 在对象缺失时恒真的边缘 bug（待修）。full-wide-proof/browser 按即停规则跳过。
 - 阶段5：full 100k 生成管线 exit 0：235.9s（限 600s）、峰值 RSS 2.67 GiB（限 8 GiB）、两侧各 100k 文件／100 万普通函数、requiredScaleMet/withinLimits/sourcesStable 均 true；summarize 对 stage5-final-v1（10 组）与 stage5-rerun-v1（2 组）分别产出 assessment.json（新增文件），localShortGatesMet=0——拦截点为 RSS 采样 coverage 缺口与 methods-number DOM 行 ID 未采集（后者为全部组共性覆盖限制），如实保留不掩盖。
 - 证据：`output/unified-prototype/stage5-rerun-v1/{REPORT.md,report.json,PROGRESS.json,short/,soak/,stage5-oracle-*}`、`stage5-handoff-evidence-exec-2/`（首轮失败证据原样在 `stage5-handoff-evidence-exec/`）、`stage5-handoff-tools-exec/`、`stage5-handoff-tools-review/scheduled/pipeline-full-100k/`。
+
+### 证据计划全部完成（startup 竞态修复后）
+
+- 修复 `measure_unified_evidence.py`（+87/−2）：根因为 `run_baseline.Browser.open_report` 等待条件 `__prototypeMeasure?.readyPaintMs !== null` 在探针对象缺失时恒真，未真正等待页面就绪 → startup 序列化缺 `probe` 键裸 KeyError。改为 `open_report_checked`（显式存在性判断＋30s 超时＋序列化后结构校验），缺失时抛结构化 `StartupProbeError`（含页面状态快照，存 `run.startup.probeFailure`），协议升至 scale-evidence-DOM-3。红绿：3 个 fixture 旧逻辑均红（KeyError）、新逻辑均绿；story 回归＋CLI 冒烟；Ruff／Pyright 通过。`measure_unified_capacity.py` 621-622 存在同模式等待但三项路径均不经过，按约束只登记未改。
+- full-mixed-browser 重跑 exit 0：20/20 冷会话、1040 窗口、52 项 summaries 全 correct/withinLimit、最慢 P95 400.2ms、localQueryAndLatencyGate=true（1 次通道重试恢复并登记 channelRetries）。
+- full-wide-proof exit 0：288 检查 / 0 失败。
+- full-wide-browser exit 0：20/20 冷会话、1040 窗口、最慢 P95 400.1ms、localQueryAndLatencyGate=true（1 次重试恢复）。
+- 首轮与 exec-2 失败／部分证据原样保留（时间戳未变）。证据：`output/unified-prototype/stage5-evidence-startup-fix/{REPORT.md,NOTES.md,red-old-*/,green-new-*/}`、`stage5-handoff-evidence-exec-3/`、`stage5-handoff-evidence-review/scheduled/{full-wide-proof,full-wide-browser}/`。
