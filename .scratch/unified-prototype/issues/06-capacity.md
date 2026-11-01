@@ -175,3 +175,15 @@ Windows 可换成本机 Chrome／Edge 可执行文件路径，读取复制的报
 证据集合验证工具校准（subagent）：`check-unified-scale-evidence.cjs` 小规模 288 项 0 失败，无查询子集 84 项与浏览器绑定期望键集完全对齐（HTML/manifest SHA 独立复算）；validate-only 绑定通过；8 个负例全部拒绝；浏览器脚本静态检查 12 项通过；`measure_unified_evidence.py` Ruff/Pyright 通过。修订：proof 命令统一 `--max-old-space-size=6144`（full-mixed 每侧 349MiB JSON，与矩阵 oracle 同口径）。未测：小规模烟测与 full-mixed/full-wide 满规模（预计 proof 3×288=864 项、烟测 52 窗口、满规模 2×1040=2080 窗口、每组 52 项 P95），须待 PID 98850 全矩阵及长时结束后按 execution-plan.json 顺序执行。证据：`output/unified-prototype/stage5-handoff-evidence-review/{execution-plan.json,review.md,review-summary.json}`。未改冻结 runtime。
 
 生成管线与汇总判定工具校准（subagent）：`run_unified_pipeline.py`、`summarize_unified_matrix.py` CLI `--help` 无副作用；汇总合成校准 18/18（修订前副本 7/18，11 项负向被拦截或修复崩溃）；管线接口注入 7/7（含超时进程组清理）；181 文件真实运行 0.698s，RSS 2 次读取竞态保留并如实置 `withinTimeAndMemoryLimits=false`；summarize CLI 冒烟 exit 0，门槛未通过如实输出（localShortGatesMet=0、compatibilityAccepted=false）。Ruff／Pyright／py_compile 通过（修订前 Pyright 1 error）。满规模 full 100k 生成管线与 stage5-final-v1 汇总须在矩阵及 1,800 秒长时结束后按 execution-plan.json 顺序执行。证据：`output/unified-prototype/stage5-handoff-tools-review/{execution-plan.json,review.md,review-summary.json}`。未改冻结 runtime。
+
+## 首轮流跑结果（自动接续 agent 盘点）
+
+证据：`output/unified-prototype/stage5-handoff-matrix-final/summary.json`、`stage5-handoff-evidence-exec/`、`stage5-handoff-autoexec/{report.md,report.json}`。矩阵总时长约 6,732 秒，驱动正常退出，源码稳定性标记干净。
+
+- 短测 8/10 通过；full-wide、full-deep 失败（`CDP response channel closed`）。
+- 完整 oracle 已测组全部通过（含 full-wide，完整序列 SHA256 一致）；low/mid/full-deep 三组 oracle 因 Node `ERR_STRING_TOO_LONG`（超 V8 字符串长度上限）无法完成，属 oracle 工具侧限制，deep 组业务正确性尚未判定。
+- soak full-mixed 失败：266.3s/1800s 提前断连；RSS 1.729→1.792 GiB 已登记，不满程不得出长时资源结论。
+- 证据计划执行 4/6：small-story-proof 288/0、小规模烟测、full-mixed-proof 288/0 通过；full-mixed-browser rc=1（冷 1/20、热 15/20 CDP 断连）按非零即停规则中止，full-wide-proof/browser 未执行；工具计划按规则跳过。
+- 四例 CDP 断连集中于满规模浏览器高压场景（full-wide/full-deep 短测、full-mixed soak、full-mixed 证据浏览器），待诊断是浏览器进程崩溃（如渲染 OOM）还是自动化通道问题；修复后重跑失败项。
+
+Windows Chrome/Edge 与 macOS Edge 仍未测；上述失败未修复前，阶段 5 不得宣称任何满规模通过。
