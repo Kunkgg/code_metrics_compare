@@ -205,3 +205,12 @@ Windows Chrome/Edge 与 macOS Edge 仍未测；上述失败未修复前，阶段
 首轮矩阵结束，已完成组证据按各自 results.json 内记录的脚本 SHA 定位，采样期源码冻结解除。`measure_unified_capacity.py` 与 `measure_unified_evidence.py` 新增会话级丢弃重试：agent-browser 通道错误签名（`CDP response channel closed`／WebSocket reset 类文本）触发；失败会话整体丢弃，弃样产物移入 `discarded/` 保留；同号会话以新 profile 重建重跑，每会话最多 3 次，耗尽则组按原失败语义停止并保留证据；soak 中途断连整段重启不拼接。results.json 新增可选 `channelRetries` 字段（无重试时缺席）；协议版本 unified-capacity-1→2、scale-evidence-DOM-1→2，limitations 登记重试语义。计时、采样、P95、资源差分语义不变。
 
 校准：签名检测单测 6/6（正例取自 stage5-cdp-repro 真实错误文本）；伪造注入三路径全验证（恢复：两会话各注入一次→丢弃重跑全 sampled、channelRetries 2 条；耗尽：3 次丢弃后组失败 exit 1 保留证据；无注入：无 channelRetries 键、无 discarded/）；evidence 脚本同构路径 fakeE 通过；真实 story 回归：新代码与旧代码（HEAD worktree）结果结构、29 任务集合完全一致，仅协议版本与 limitations 差异。Ruff／Pyright 通过。证据：`output/unified-prototype/stage5-retry-calibration/{NOTES.md,progress.json,fakeA..fakeE,storyA-capacity-old,storyB-capacity-new}`。
+
+### 重跑与剩余管线（自动接续 v3）
+
+- 阶段1：full-wide、full-deep 短测重跑（参数与首轮一致，测量脚本 v2 通道重试）各 exit 0、各 20 冷／20 热。重跑最慢 P95：full-deep cold `methods-absent` 639.2ms（重搜索限 3s）、full-wide cold `metric:lines_per_file` 550.2ms（限 1s），均达标。
+- 阶段2：两组对重跑测量重绑完整 oracle 各 334/0；full-deep 首轮 `ERR_STRING_TOO_LONG` 未复现（流式修复生效）。输出在 `stage5-rerun-v1/stage5-oracle-*`（脚本要求目录名前缀）。
+- 阶段3：full-mixed soak 重跑跑满 1803.7s，峰值增量 RSS 0.81 GiB，趋势中位 1965→1708 MiB（下降）；首轮 266s 断连未复现（重试生效）。
+- 阶段4：full-mixed-browser 重跑 exit 1：第 20 冷会话 startup 时 `window.__prototypeMeasure` 未定义，序列化缺 `probe` 键致 `KeyError`（非通道签名，不触发重试）；19/20 会话已采样，证据保留。同时确认 `open_report` 等待条件 `__prototypeMeasure?.readyPaintMs !== null` 在对象缺失时恒真的边缘 bug（待修）。full-wide-proof/browser 按即停规则跳过。
+- 阶段5：full 100k 生成管线 exit 0：235.9s（限 600s）、峰值 RSS 2.67 GiB（限 8 GiB）、两侧各 100k 文件／100 万普通函数、requiredScaleMet/withinLimits/sourcesStable 均 true；summarize 对 stage5-final-v1（10 组）与 stage5-rerun-v1（2 组）分别产出 assessment.json（新增文件），localShortGatesMet=0——拦截点为 RSS 采样 coverage 缺口与 methods-number DOM 行 ID 未采集（后者为全部组共性覆盖限制），如实保留不掩盖。
+- 证据：`output/unified-prototype/stage5-rerun-v1/{REPORT.md,report.json,PROGRESS.json,short/,soak/,stage5-oracle-*}`、`stage5-handoff-evidence-exec-2/`（首轮失败证据原样在 `stage5-handoff-evidence-exec/`）、`stage5-handoff-tools-exec/`、`stage5-handoff-tools-review/scheduled/pipeline-full-100k/`。
