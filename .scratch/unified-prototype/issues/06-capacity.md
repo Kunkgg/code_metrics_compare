@@ -5,9 +5,18 @@ Status: claimed
 
 ## 当前结论
 
-阶段 5 正在实际执行，**尚未验收**。十组 100k／1m 输入已就绪；本 pane 的最终运行入口为 `run_unified_matrix.py`，输出 `output/unified-prototype/stage5-final-v1/`。运行顺序为十组 20 冷／20 热 → 独立完整序列 oracle → full-mixed 1,800 秒主动长时。下方准备和校准记录保留历史，不将等待目录或构建后源码有变化的报告混入最终结果。
+阶段 5 本机满规模验证已执行完毕（首轮＋重跑＋三面真实失败修复），**仍不构成完整验收**：Windows Chrome/Edge 与 macOS Edge 未测，headed 未采，若干采样覆盖限制保留。最终状态：
 
-容量测量工具、顺序矩阵驱动及完整查询／净影响／证据／生成管线验证工具分别记录实际验证状态；未修改 Golden、PRD、ARCHITECTURE 或冻结的原型运行源码。当前唯一主动修改 agent 已接手旧 pane；后台矩阵 PID 98850 保持运行，测试工具的小规模校准交给独立 subagent。
+- 短测：十组全部 20 冷／20 热完成（首轮 8 组＋重跑 full-wide/full-deep）；十组完整明细 oracle 均 334/0 通过（矩阵内 7 组、deep 修复 3 组、full-wide/full-deep 另以成功测量重绑）。最慢记录：首轮 hot `methods-absent` 649.4ms、重跑 cold 639.2ms、证据浏览器 400.2ms，均在各自观测上限内。
+- 长时：full-mixed 1,803.7s 跑满（重跑），峰值增量 RSS 0.81 GiB，趋势中位 1965→1708 MiB 下降。
+- 证据：full-mixed/full-wide 浏览器各 20/20 冷会话、1040 窗口、52 项 summaries 全 correct/withinLimit、localQueryAndLatencyGate=true；proof 288/0×3。
+- 净影响：full-mixed 48 组合／full-wide 24 组合满规模 PASS（各 1,098,512 排名对象，21.0s／13.7s，峰值 ≤2.63 GiB）；deep 受工具 V8 字符串上限未覆盖，由 oracle 334 任务间接佐证。
+- 生成管线：full 100k 端到端 235.9s／峰值 2.67 GiB（限 600s／8 GiB）达标，sourcesStable=true。
+- 已修复的真实失败：oracle V8 字符串上限（流式扫描）、测量通道断连（会话级丢弃重试）、证据 startup 竞态（结构化等待）。CDP 断连定性为 agent-browser daemon↔Chrome IO reset，非页面失败。
+- 保留限制：RSS 采样竞态／覆盖缺口与 methods-number DOM 行 ID 未采集（summarize localShortGatesMet=0 的拦截点，全组共性）、热样本集中于单一 run、OS 磁盘缓存未控、冷查询共享索引、满规模断网／注入专项未执行（小规模见 issue07）、200k／2m 未执行、deep 净影响工具未覆盖。
+- assessment.json 已产出（stage5-final-v1 十组、stage5-rerun-v1 两组），localShortGatesMet=0 为如实拦截非掩盖。各阶段详证见下方分节及各 REPORT 文件。
+
+下方准备和校准记录保留历史；不将等待目录或构建后源码有变化的报告混入最终结果。
 
 ## 调查及输入准备
 
@@ -222,3 +231,7 @@ Windows Chrome/Edge 与 macOS Edge 仍未测；上述失败未修复前，阶段
 - full-wide-proof exit 0：288 检查 / 0 失败。
 - full-wide-browser exit 0：20/20 冷会话、1040 窗口、最慢 P95 400.1ms、localQueryAndLatencyGate=true（1 次重试恢复）。
 - 首轮与 exec-2 失败／部分证据原样保留（时间戳未变）。证据：`output/unified-prototype/stage5-evidence-startup-fix/{REPORT.md,NOTES.md,red-old-*/,green-new-*/}`、`stage5-handoff-evidence-exec-3/`、`stage5-handoff-evidence-review/scheduled/{full-wide-proof,full-wide-browser}/`。
+
+### 净影响满规模验证
+
+full-mixed（首轮成功测量 artifact）：12 指标 × 4 范围 = 48 组合，排名对象 1,098,512，分页请求 192，21.03s，峰值 RSS 2.63 GiB，PASS。full-wide（重跑成功测量 artifact）：12 指标 × 2 范围 = 24 组合，同样 1,098,512 排名对象，96 请求，13.73s，峰值 2.24 GiB，PASS。两组 exitCode 0、failed:0、cancellations 0，所用 HTML sha256 与测量记录完全一致；每侧 100k 文件／100 万普通函数／12,920 目录。full-deep：单侧 JSON 567,702,773 字节超 V8 单字符串上限，脚本两种读法均 `ERR_STRING_TOO_LONG`（与 oracle 修复前同类，未加流式），deep 净影响满规模由 oracle 334 任务间接佐证。证据：`output/unified-prototype/stage5-impact-full/{REPORT.md,report.json,full-mixed/,full-wide/}`。

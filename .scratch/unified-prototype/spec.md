@@ -82,8 +82,8 @@ Status: claimed
 
 | OS | 浏览器 | 当前状态 |
 |---|---|---|
-| macOS 27.0.1 / Apple M5 / 16 GiB | Chrome 156.0.8078.48 | 阶段 0、1 开发机测量完成；完整产品矩阵仍待阶段 5 |
-| macOS 27.0.1 / Apple M5 / 16 GiB | Chrome for Testing 155.0.8059.39 headless | 本轮恢复：三页／20 指标／净影响／证据小规模回归通过；满规模及资源门槛未验 |
+| macOS 27.0.1 / Apple M5 / 16 GiB | Chrome 156（0.8078.48 阶段 0／1；满规模为系统 0.8078.80 headless，版本由 UA-CH 记录） | 阶段 0、1 开发机测量完成；阶段 5 满规模短测／oracle／长时／证据在本机完成（保留限制见 [06](issues/06-capacity.md)），不替代 Windows 验收 |
+| macOS 27.0.1 / Apple M5 / 16 GiB | Chrome for Testing 155.0.8059.39 headless | 三页／20 指标／净影响／证据小规模回归通过；满规模仅用于阶段 5 CDP 断连诊断对照（非验收测量），资源门槛未验 |
 | macOS | Edge | 未安装／未测 |
 | Windows（具体版本和硬件待登记） | Chrome | 必测，未取得执行环境 |
 | Windows（具体版本和硬件待登记） | Edge | 必测，未取得执行环境 |
@@ -117,5 +117,5 @@ Golden 候选人工审核的通用修正：扫描明细字段统一为 `file_dup
 
 本轮接续检查点：阶段 2–4 的本机小规模边界已按 U01–U07、AT-01–05 补验，追溯与重放入口见 [07 小规模边界](issues/07-small-boundaries.md)。修复零分母显示、真实未知值和阈值、正常场景覆盖／汇总／版本／映射限制、组合异常、HTML／模板注入以及换行字典索引错位；序列化均值相同但原始比例变化的概览方向也已修正。未改任何已批准 Golden 或两份正式设计文档。最终 `next-final-validated` 回放通过（概览 272、三页阈值 173、零分母 114、当前位置／其他度量 13、故障／乱序 22 项，另含初始化／运行失败重试、断网、静态和数据注入）；独立未知／组合异常 73／81、未知阈值 294、字典 45、证据浏览器 251 项通过。完整 pytest 484 项通过。旧 workspace 热样本含未实际请求的重选指标点击，保留历史但撤回其真实查询性能含义；修订脚本先切离再计时，新小规模 20 次实际查询 P95 为 118.4–176.1 ms（最后概览方向修复前采集，修复后另验方向，不据此声明满规模通过）。
 
-[阶段 5](issues/06-capacity.md) 首轮流跑完成：十组 100k／1m 输入（1%／30%／100% × mixed／wide／deep＋20% 集合进出组，逐侧至少 1.8 亿非空非注释代码行）在 `output/unified-prototype/stage5-final-v1/` 顺序完成短测／oracle／长时驱动。短测 8/10 通过；full-wide／full-deep 及 full-mixed 长时因 `CDP response channel closed` 提前断连失败；deep 三组 oracle 遇 Node 字符串上限（工具侧限制）；证据计划 4/6 执行后按非零即停规则中止。真实失败修复与重跑进行中，不以首轮流跑冒充验收；现有 wide 约 12,500 直属子目录、mixed 的 src/bulk 约 33,333 直属文件，不能称已覆盖 100,000 直属文件。Windows Chrome／Edge 与 macOS Edge 仍未测，规格状态保持 claimed。
+[阶段 5](issues/06-capacity.md) 本机满规模验证执行完毕：十组 100k／1m 输入（1%／30%／100% × mixed／wide／deep＋20% 集合进出组，逐侧至少 1.8 亿非空非注释代码行）完成 20 冷／20 热短测与完整明细 oracle（十组均 334 任务通过，full-wide/full-deep 另以成功测量重绑）、full-mixed 1,800 秒长时跑满（峰值增量 0.81 GiB）、full-mixed/full-wide 证据浏览器各 20/20 会话全过（1040 窗口，最慢 P95 400.2ms）、净影响满规模 72 组合通过（各 1,098,512 排名对象；deep 受工具 V8 上限由 oracle 间接佐证）、full 100k 端到端生成管线 235.9s／2.67 GiB 达标（600s／8 GiB 门槛）。测量期真实失败均已修复归档（oracle 流式扫描、通道会话级重试、startup 竞态）；CDP 断连定性为自动化通道 IO reset，非页面失败。保留限制：RSS 采样覆盖缺口与 methods-number DOM ID 未采集使 summarize localShortGatesMet=0、热样本单一 run、OS 缓存未控、满规模断网／注入专项与 200k／2m 未执行；Windows Chrome／Edge 与 macOS Edge 未测。阶段 5 不宣称完整验收，规格状态保持 claimed。
 
