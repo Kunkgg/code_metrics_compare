@@ -36,10 +36,18 @@ function textOf(bytes) {
   return new TextDecoder().decode(bytes);
 }
 
+// 编码由元数据声明；没有标记的旧产物继续使用换行分隔，不猜测文本首字符。
+function parseDictionary(bytes) {
+  const text = textOf(bytes);
+  if (S.meta.dictionaryEncoding === 'json') return JSON.parse(text);
+  if (S.meta.dictionaryEncoding == null) return text ? text.split('\n') : [];
+  throw new Error('不支持的字典编码：' + S.meta.dictionaryEncoding);
+}
+
 const LOAD_HANDLERS = {
   meta(bytes) { S.meta = JSON.parse(textOf(bytes)); },
-  paths(bytes) { const text=textOf(bytes); S.paths=text?text.split('\n'):[]; S.F=S.paths.length; },
-  names(bytes) { const text=textOf(bytes); S.names=text?text.split('\n'):[]; },
+  paths(bytes) { S.paths=parseDictionary(bytes); S.F=S.paths.length; },
+  names(bytes) { S.names=parseDictionary(bytes); },
   files(bytes) { S.files = parseBin(bytes).views; },
   dirs(bytes) {
     const parsed = JSON.parse(textOf(bytes));

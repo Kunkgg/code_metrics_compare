@@ -283,17 +283,31 @@
     return {...result,delta:knownDelta(result.baseline.value,result.current.value)};
   }
   function summaryStatus(key) {
+    const integrity=(reader?snapshot?.integrity:null)||DATA.meta.integrity;
+    const actual=[...(integrity?.comparisonIssues||[]),...(integrity?.summaryIssues?.[key]||[])];
+    if(actual.length)return [...new Set(actual)].join('；');
     if(!model.limited)return '';
     if(['code_size','lines_per_file','unsafe_functions_kloc','redundant_code_kloc'].includes(key))return '汇总不一致';
     if(key.includes('code_duplication'))return '部分数据未知';
     if(key.startsWith('huge_folder'))return '成员不完整';
     return '';
   }
+  function metricValue(side,key,value=model.sides[side].summary[key]) {
+    const fraction=metricFraction(key);
+    if(fraction&&model.sides[side].summary[fraction[1]]===0)return '不适用';
+    return fmt(value,decimalMetric(key))+(key.endsWith('_ratio')?'%':'');
+  }
   function overviewMetric([key,type]) {
     const b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],fraction=metricFraction(key),t=thresholdKey(type)?transition(type):null;
-    const issue=summaryStatus(key)||(!Number.isFinite(b)||!Number.isFinite(c)?'数据未知':'')||(fraction&&['baseline','current'].some(side=>!model.sides[side].summary[fraction[1]])?'分母为零 / 不适用':'')||(thresholdInfo(type)?.issue==='阈值未知'?'阈值未知':'')||(t?.limited?'部分对象不可比较':'');
+    const issue=summaryStatus(key)||(!Number.isFinite(b)||!Number.isFinite(c)?'数据未知':'')||(fraction&&['baseline','current'].some(side=>model.sides[side].summary[fraction[1]]===0)?'分母为零 / 不适用':'')||(thresholdInfo(type)?.issue==='阈值未知'?'阈值未知':'')||(t?.limited?'部分对象不可比较':'');
     // 按原始汇总值判方向；超限进出独立参与筛选，避免净数抵消变化。
-    const d=issue?null:c-b,directions=[];
+    let d=issue?null:c-b;
+    // 已序列化的两位均值可能相等；方向仍须保留原始分子／分母的微小变化。
+    if(d===0&&fraction){
+      const [numerator,denominator]=fraction,before=model.sides.baseline.summary,after=model.sides.current.summary;
+      if(Number.isFinite(before[numerator])&&Number.isFinite(after[numerator])&&before[denominator]>0&&after[denominator]>0)d=(after[numerator]/after[denominator]-before[numerator]/before[denominator])*(key.endsWith('_ratio')?100:1);
+    }
+    const directions=[];
     if(!issue){
       if(d>0||t?.entered>0)directions.push('growth');
       if(d<0||t?.exited>0)directions.push('decrease');
@@ -307,7 +321,7 @@
     const label=issue?'数据异常':directions.includes('unchanged')?'无变化':t?'净变化':d>0?'增长':'减少';
     const exact=d==null?'—':d.toLocaleString('zh-CN',{maximumSignificantDigits:15});
     const movement=t?`<div class="metric-movements">${[['growth','entered','新增超限'],['decrease','exited','退出超限']].filter(([direction])=>state.overviewChanges.includes(direction)).map(([direction,status,label])=>`<button class="movement ${direction}" data-action="metric" data-value="${type}" data-metric="${key}" data-status="${t.limited?'exceptions':status}" aria-label="${esc(metricName(key))}：${label} ${t.limited?'未知':t[status]}">${label} <b>${t.limited?'—':t[status]}</b><span aria-hidden="true">↗</span></button>`).join('')}</div>`:'';
-    return `<article class="metric-card ${issue?'has-issue':directions.includes('growth')&&state.overviewChanges.includes('growth')?'has-growth':directions.includes('decrease')&&state.overviewChanges.includes('decrease')?'has-decrease':''}" data-overview-metric="${key}"><button class="metric-summary" data-action="metric" data-value="${type}" data-metric="${key}" data-status="${status}" title="${esc(metricName(key))}：${fmt(b,decimal)}${suffix} → ${fmt(c,decimal)}${suffix}；${t?'净变化':'变化'} ${exact} ${unit}${issue?`；${issue}`:''}"><span class="metric-name">${esc(metricName(key))}<span class="card-arrow" aria-hidden="true">↗</span></span><div class="metric-delta ${issue?'muted':cls(d)}">${deltaText(d==null?null:knownDelta(b,c),decimal)}<small>${unit}</small></div><div class="metric-bottom"><span>基线 <b>${fmt(b,decimal)}${suffix}</b><span class="arrow-sep">→</span>当前 <b>${fmt(c,decimal)}${suffix}</b></span><span class="metric-direction ${issue?'muted':cls(d)}">${label}</span></div></button>${movement}${issue||warning?`<div class="metric-warning">${esc([issue,warning].filter(Boolean).join('；'))}</div>`:''}</article>`;
+    return `<article class="metric-card ${issue?'has-issue':directions.includes('growth')&&state.overviewChanges.includes('growth')?'has-growth':directions.includes('decrease')&&state.overviewChanges.includes('decrease')?'has-decrease':''}" data-overview-metric="${key}"><button class="metric-summary" data-action="metric" data-value="${type}" data-metric="${key}" data-status="${status}" title="${esc(metricName(key))}：${metricValue('baseline',key,b)} → ${metricValue('current',key,c)}；${t?'净变化':'变化'} ${exact} ${unit}${issue?`；${esc(issue)}`:''}"><span class="metric-name">${esc(metricName(key))}<span class="card-arrow" aria-hidden="true">↗</span></span><div class="metric-delta ${issue?'muted':cls(d)}">${deltaText(d==null?null:knownDelta(b,c),decimal)}<small>${unit}</small></div><div class="metric-bottom"><span>基线 <b>${metricValue('baseline',key,b)}</b><span class="arrow-sep">→</span>当前 <b>${metricValue('current',key,c)}</b></span><span class="metric-direction ${issue?'muted':cls(d)}">${label}</span></div></button>${movement}${issue||warning?`<div class="metric-warning">${esc([issue,warning].filter(Boolean).join('；'))}</div>`:''}</article>`;
   }
   function comparisonHeader() {
     return `<div class="comparison"><span class="repo">${esc(DATA.meta.identities.current.repository)}</span><span>基线 <b>${esc(DATA.meta.identities.baseline.version)}</b></span><span>→</span><span>当前 <b>${esc(DATA.meta.identities.current.version)}</b></span><span class="spacer"></span><span>${fmt(model.sides.current.summary.files_total)} 文件 / ${fmt(model.sides.current.summary.methods_total)} 函数</span></div>`;
@@ -323,7 +337,7 @@
     maximum=Math.max(1,...rows.map(r=>Math.abs(r.delta??0)));
     shown=rows.filter(row=>row.delta!=null&&state.overviewChanges.includes(changeDirection(row.delta)));
     }
-    return `<div class="panel-head"><h2>目录代码行变化</h2><span class="muted small">${metricName('code_size')}</span></div>${reader?pagination(snapshot.overview.chart,'chart-page','项'):''}${shown.length?shown.map(r=>`<div class="chart-row"><button data-action="${r.file?'open-file':'directory'}" data-value="${esc(r.path)}" data-type="code">${esc(r.path)}</button><div class="bar-track">${r.delta?`<span class="bar ${r.delta<0?'negative':'positive'}" style="width:${Math.abs(r.delta)/maximum*49}%"></span>`:''}</div><span class="number ${cls(r.delta)}">${deltaText(r.delta)}</span></div>`).join(''):'<div class="empty">没有符合所选类型的目录</div>'}`;
+    return `<div class="panel-head"><h2>目录代码行变化</h2><span class="muted small">${esc(metricName('code_size'))}</span></div>${reader?pagination(snapshot.overview.chart,'chart-page','项'):''}${shown.length?shown.map(r=>`<div class="chart-row"><button data-action="${r.file?'open-file':'directory'}" data-value="${esc(r.path)}" data-type="code">${esc(r.path)}</button><div class="bar-track">${r.delta?`<span class="bar ${r.delta<0?'negative':'positive'}" style="width:${Math.abs(r.delta)/maximum*49}%"></span>`:''}</div><span class="number ${cls(r.delta)}">${deltaText(r.delta)}</span></div>`).join(''):'<div class="empty">没有符合所选类型的目录</div>'}`;
   }
   function overviewFiles(direction,label) {
     const rows=reader?snapshot.overview.files[direction].rows:rowsFor('code').filter(row=>!hasException(row)&&changeDirection(row.delta)===direction).sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)||a.path.localeCompare(b.path));
@@ -443,8 +457,8 @@
       if(reader&&['duplication','sourceDuplication','dupfiles','sourceDupfiles'].includes(state.type))content+=boundedDuplicationEvidence(row);
       else if(['duplication','sourceDuplication'].includes(state.type))content+=duplicationEvidence(row);
       else if(['dupfiles','sourceDupfiles'].includes(state.type))content+=`<div class="group-columns">${['baseline','current'].map(side=>`<section class="group-side"><h3>${side==='baseline'?'基线':'当前'}</h3>${model.sides[side].dupfiles.filter(g=>g.members.includes(row.path)).map(g=>`<div class="raw-row"><span class="muted">组 ${esc(g.id)}</span>${g.members.map(path=>`<p class="mono">${esc(path)}</p>`).join('')}</div>`).join('')||'<p class="muted">无重复文件</p>'}</section>`).join('')}</div>`;
-      else content+=`<div class="evidence-section"><table><thead><tr><th>指标</th><th class="num">基线</th><th class="num">当前</th></tr></thead><tbody>${['code_size','raw_lines','code_duplication_total'].map((key,i)=>`<tr><td>${metricName(key)}</td><td class="num">${row.before?fmt(row.before[i]):'—'}</td><td class="num">${row.after?fmt(row.after[i]):'—'}</td></tr>`).join('')}</tbody></table></div>`;
-      content+=`<div class="file-actions">${[['cc','函数'],['duplication','重复片段'],['unsafe',metricName('unsafe_functions_total')],['redundant',metricName('redundant_code_total')],['dupfiles',metricName('file_duplication_total')]].filter(([type])=>type!==state.type).map(([type,label])=>`<button data-action="related" data-value="${type}" data-path="${esc(row.path)}">${label} ↗</button>`).join('')}</div>`;
+      else content+=`<div class="evidence-section"><table><thead><tr><th>指标</th><th class="num">基线</th><th class="num">当前</th></tr></thead><tbody>${['code_size','raw_lines','code_duplication_total'].map((key,i)=>`<tr><td>${esc(metricName(key))}</td><td class="num">${row.before?fmt(row.before[i]):'—'}</td><td class="num">${row.after?fmt(row.after[i]):'—'}</td></tr>`).join('')}</tbody></table></div>`;
+      content+=`<div class="file-actions">${[['cc','函数'],['duplication','重复片段'],['unsafe',metricName('unsafe_functions_total')],['redundant',metricName('redundant_code_total')],['dupfiles',metricName('file_duplication_total')]].filter(([type])=>type!==state.type).map(([type,label])=>`<button data-action="related" data-value="${type}" data-path="${esc(row.path)}">${esc(label)} ↗</button>`).join('')}</div>`;
     } else if(row.kind==='method') {
       if(row.ambiguous)content+=`<div class="notice">${esc(row.warning||'同名函数可能混淆；同文件同名，无法确定配对。')} 不计算逐函数变化，不推断确定超限进出。</div>`;
       for(const [side,tag,items] of [['基线','baseline',row.before],['当前','current',row.after]]){
@@ -560,14 +574,14 @@
       <details class="average-formula"><summary>计算明细</summary>
         <div class="table-wrap"><table class="average-summary"><thead><tr><th>统计量</th><th class="num">基线</th><th class="num">当前</th><th class="num">变化</th></tr></thead><tbody>${entries.map(([field,label,fieldUnit])=>`<tr><td>${esc(label)} <small class="muted">${fieldUnit}</small></td><td class="num">${fmt(b[field])}</td><td class="num">${fmt(c[field])}</td><td class="num ${change.issues.length?'muted':cls(knownDelta(b[field],c[field]))}">${deltaText(knownDelta(b[field],c[field]))}</td></tr>`).join('')}</tbody></table></div>
         ${state.metric==='lines_per_file'?`<div class="average-members" title="按两侧扫描路径集合识别，不等同于磁盘创建或删除">${change.members.map(m=>`<span>${m.label} <b>${m.count}</b><span class="${cls(m.lines)}">${deltaText(m.lines)} 行</span></span>`).join('')}</div>`:''}
-        <p>${esc(metricName(state.metric))} = ${numeratorLabel} ÷ ${denominatorLabel}${change.ratio?' × 100%':''}。</p><p>影响值是每个${change.denominator==='folders_total'?'目录':'文件'}对本范围指标变化的净影响，正值推高、负值拉低。所有对象的影响值按原始精度相加等于整体变化；显示值四舍五入到两位，0.00 可能表示微小影响或正负作用抵消，悬停可查看更高精度。条形以本范围最大影响的绝对值为标尺，各页共用。</p><p>计算时先固定基线${denominatorLabel}，分配各对象${numeratorLabel}变化的影响；再按当前${numeratorLabel}，分配各对象${denominatorLabel}变化的影响，将两项相加得到一个影响值。函数类指标按文件汇总。此值采用固定顺序的算术分摊，不代表撤销该文件后指标会变化多少。</p><p>${scope?`目录范围从两侧完整明细分别重算。${change.denominator==='folders_total'?'总目录数包含所选目录本身及其可见子目录。':''}`:'保留报告汇总原值，计算前核对明细。'}</p>
+        <p>${esc(metricName(state.metric))} = ${esc(numeratorLabel)} ÷ ${esc(denominatorLabel)}${change.ratio?' × 100%':''}。</p><p>影响值是每个${change.denominator==='folders_total'?'目录':'文件'}对本范围指标变化的净影响，正值推高、负值拉低。所有对象的影响值按原始精度相加等于整体变化；显示值四舍五入到两位，0.00 可能表示微小影响或正负作用抵消，悬停可查看更高精度。条形以本范围最大影响的绝对值为标尺，各页共用。</p><p>计算时先固定基线${esc(denominatorLabel)}，分配各对象${esc(numeratorLabel)}变化的影响；再按当前${esc(numeratorLabel)}，分配各对象${esc(denominatorLabel)}变化的影响，将两项相加得到一个影响值。函数类指标按文件汇总。此值采用固定顺序的算术分摊，不代表撤销该文件后指标会变化多少。</p><p>${scope?`目录范围从两侧完整明细分别重算。${change.denominator==='folders_total'?'总目录数包含所选目录本身及其可见子目录。':''}`:'保留报告汇总原值，计算前核对明细。'}</p>
       </details>
     </section>`;
   }
   function workspace() {
     const key=state.metric,b=model.sides.baseline.summary[key],c=model.sides.current.summary[key],ratio=key.endsWith('_ratio'),fraction=metricFraction(key);
     const issue=summaryStatus(key)||(fraction&&['baseline','current'].some(side=>model.sides[side].summary[fraction[1]]===0)?'分母为零 / 不适用':'');
-    return `<div class="analysis-heading"><div class="row"><h1>分析</h1><span class="active-metric">${esc(metricName(key))}</span>${issue?badge(issue,'warning'):''}</div>${fraction&&!reader?'':`<div class="analysis-total" title="全报告指标"><span>基线 <b>${fmt(b,decimalMetric(key))}${ratio?'%':''}</b></span><span>→</span><span>当前 <b>${fmt(c,decimalMetric(key))}${ratio?'%':''}</b></span><b class="${issue?'muted':cls(knownDelta(b,c))}">${deltaText(knownDelta(b,c),decimalMetric(key))}${ratio?' 个百分点':''}</b></div>`}</div><nav class="analysis-metrics panel" aria-label="分析指标">${analysisCategories.map(([label,metrics])=>`<div class="metric-category" role="group" aria-label="${label}"><h2>${label}</h2><div class="metric-options">${metrics.map(([metric])=>`<button type="button" data-action="analysis-type" data-value="${metric}" aria-pressed="${state.metric===metric}" class="${state.metric===metric?'active':''}">${esc(metricName(metric))}</button>`).join('')}</div></div>`).join('')}</nav>${metricExplanation()}<div class="analysis-grid ${['duplication','sourceDuplication','folders','dupfiles','sourceDupfiles'].includes(state.type)?'wide-evidence':''}"><aside class="panel tree-panel">${tree()}</aside><section class="panel table-panel">${table()}</section><aside class="panel evidence-panel">${evidence()}</aside></div>`;
+    return `<div class="analysis-heading"><div class="row"><h1>分析</h1><span class="active-metric">${esc(metricName(key))}</span>${issue?badge(issue,'warning'):''}</div>${fraction&&!reader?'':`<div class="analysis-total" title="全报告指标"><span>基线 <b>${metricValue('baseline',key,b)}</b></span><span>→</span><span>当前 <b>${metricValue('current',key,c)}</b></span><b class="${issue?'muted':cls(knownDelta(b,c))}">${deltaText(issue?null:knownDelta(b,c),decimalMetric(key))}${ratio?' 个百分点':''}</b></div>`}</div><nav class="analysis-metrics panel" aria-label="分析指标">${analysisCategories.map(([label,metrics])=>`<div class="metric-category" role="group" aria-label="${label}"><h2>${label}</h2><div class="metric-options">${metrics.map(([metric])=>`<button type="button" data-action="analysis-type" data-value="${metric}" aria-pressed="${state.metric===metric}" class="${state.metric===metric?'active':''}">${esc(metricName(metric))}</button>`).join('')}</div></div>`).join('')}</nav>${metricExplanation()}<div class="analysis-grid ${['duplication','sourceDuplication','folders','dupfiles','sourceDupfiles'].includes(state.type)?'wide-evidence':''}"><aside class="panel tree-panel">${tree()}</aside><section class="panel table-panel">${table()}</section><aside class="panel evidence-panel">${evidence()}</aside></div>`;
   }
   function metricRows(keys) {
     return keys.map(key=>{
@@ -576,7 +590,7 @@
       const b=value('baseline'),c=value('current'),issue=entry?overviewMetric(entry).issue:summaryStatus(key)||(!Number.isFinite(b)||!Number.isFinite(c)?'数据未知':'');
       const warning=entry&&thresholdInfo(entry[1])?.thresholdChanged?'阈值变化；清单进出不证明代码恶化或改善':'';
       const d=issue?null:knownDelta(b,c),ratio=key.endsWith('_ratio'),decimal=decimalMetric(key),label=maximum?'最大函数代码行':metricName(key);
-      return `<tr data-summary-metric="${key}"><td title="${esc(key)}"><div class="metric-row-label">${entry?`<button class="row-title" data-action="metric" data-value="${entry[1]}" data-metric="${key}" data-status="${issue?'all':'changes'}">${esc(label)} <span aria-hidden="true">↗</span></button>`:esc(label)}${issue?badge(issue,'warning'):''}${warning?badge(warning,'warning'):''}</div></td><td class="num">${fmt(b,decimal)}${ratio?'%':''}</td><td class="num">${fmt(c,decimal)}${ratio?'%':''}</td><td class="num ${issue?'muted':cls(d)}">${deltaText(d,decimal)}${ratio?'<small class="delta-unit">个百分点</small>':''}</td></tr>`;
+      return `<tr data-summary-metric="${key}"><td title="${esc(key)}"><div class="metric-row-label">${entry?`<button class="row-title" data-action="metric" data-value="${entry[1]}" data-metric="${key}" data-status="${issue?'all':'changes'}">${esc(label)} <span aria-hidden="true">↗</span></button>`:esc(label)}${issue?badge(issue,'warning'):''}${warning?badge(warning,'warning'):''}</div></td><td class="num">${metricValue('baseline',key,b)}</td><td class="num">${metricValue('current',key,c)}</td><td class="num ${issue?'muted':cls(d)}">${deltaText(d,decimal)}${ratio?'<small class="delta-unit">个百分点</small>':''}</td></tr>`;
     }).join('');
   }
   function allMetrics() {

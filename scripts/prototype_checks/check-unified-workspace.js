@@ -23,6 +23,8 @@
   for(const metric of metrics){
     const samples=[];let coldMs;
     for(let i=0;i<=20;i++){
+      // 重选当前指标会直接返回；先切换离开，确保每次计时都实际发起查询。
+      if(state().metric===metric)await click(`[data-action="analysis-type"][data-value="${metric==='code_size'?'lines_per_file':'code_size'}"]`);
       const start=performance.now();await click(`[data-action="analysis-type"][data-value="${metric}"]`);const elapsed=performance.now()-start;
       if(!i)coldMs=elapsed;else samples.push(elapsed);
       check(metric+'.state',state().metric===metric);

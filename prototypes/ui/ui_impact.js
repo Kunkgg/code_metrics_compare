@@ -48,7 +48,7 @@ function uiImpact(state){
   const definition=uiFractions[state.metric];if(!definition)return null;
   const scope=state.searchScope==='all'?'':state.directory||'',cacheKey=JSON.stringify([uiContext.scenario,state.metric,scope]);
   if(uiImpactCache?.key!==cacheKey){
-    const [numerator,denominator,type]=definition,ratio=state.metric.endsWith('_ratio'),scale=ratio?100:1,threshold=uiThreshold(type),issues=[],sides={},sets={};
+    const [numerator,denominator,type]=definition,ratio=state.metric.endsWith('_ratio'),scale=ratio?100:1,threshold=uiThreshold(type),issues=[...(uiContext.comparisonIssues||[])],sides={},sets={};
     if(threshold){
       const limits=['baseline','current'].map(side=>uiContext.summaries[side].huge_threshold[threshold]);
       if(!limits.every(Number.isFinite))issues.push('超限阈值未知');

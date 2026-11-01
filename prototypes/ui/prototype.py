@@ -4,6 +4,7 @@ import argparse
 import hashlib
 import html
 import json
+import re
 import sys
 import webbrowser
 from collections import Counter
@@ -57,6 +58,11 @@ def safe_json(value: Any) -> str:
     for char in ("<", ">", "&", "\u2028", "\u2029"):
         text = text.replace(char, f"\\u{ord(char):04x}")
     return text
+
+
+def fill_template(template: str, replacements: dict[str, str]) -> str:
+    """只解释原模板的标记一次，数据中的同名文本保持原样。"""
+    return re.sub(r"@@[A-Z_]+@@", lambda match: replacements.get(match[0], match[0]), template)
 
 
 def load_metric_names() -> dict[str, str]:
@@ -276,6 +282,20 @@ def static_overview(data: dict[str, Any]) -> str:
         "huge_cyclomatic_complexity_total": "hugeCC",
         "huge_folder_total": "folders",
     }
+    denominators = {
+        "lines_per_file": "files_total",
+        "lines_per_method": "methods_total",
+        "cyclomatic_complexity_per_method": "methods_total",
+        "code_duplication_ratio": "code_size",
+        "non_hfile_code_duplication_ratio": "code_size",
+        "file_duplication_ratio": "files_total",
+        "non_hfile_duplication_ratio": "files_total",
+        "huge_headerfile_ratio": "files_total",
+        "huge_non_headerfile_ratio": "files_total",
+        "huge_method_ratio": "methods_total",
+        "huge_cyclomatic_complexity_ratio": "methods_total",
+        "huge_folder_ratio": "folders_total",
+    }
     for key, unit in MAIN_METRICS:
         current_category = "超大指标" if key.startswith("huge_") else "常规指标"
         if current_category != category:
@@ -283,7 +303,21 @@ def static_overview(data: dict[str, Any]) -> str:
             category = current_category
         before = data["baseline"]["summary_metrics"][key]
         after = data["current"]["summary_metrics"][key]
-        delta = Decimal(str(after)) - Decimal(str(before))
+        integrity = data["meta"].get("integrity", {})
+        reasons = [
+            *integrity.get("comparisonIssues", []),
+            *integrity.get("summaryIssues", {}).get(key, []),
+        ]
+        denominator = denominators.get(key)
+        unavailable = {
+            side: denominator is not None and data[side]["summary_metrics"].get(denominator) == 0
+            for side in ("baseline", "current")
+        }
+        delta = (
+            None
+            if reasons or any(unavailable.values()) or before is None or after is None
+            else Decimal(str(after)) - Decimal(str(before))
+        )
         decimal = key.endswith(("_ratio", "_kloc", "_per_file", "_per_method"))
         transition = data["meta"]["thresholdTransitions"].get(
             types.get(key.replace("_ratio", "_total"))
@@ -296,23 +330,39 @@ def static_overview(data: dict[str, Any]) -> str:
                 else f"新增 {transition['entered']} / 退出 {transition['exited']}"
             )
         suffix = "%" if key.endswith("_ratio") else ""
+        side_values = [
+            "不适用"
+            if unavailable[side]
+            else "未知"
+            if value is None
+            else display_number(value, decimal=decimal) + suffix
+            for side, value in (("baseline", before), ("current", after))
+        ]
         values = [
             data["meta"]["metricNames"][key],
-            display_number(before, decimal=decimal) + suffix,
-            display_number(after, decimal=decimal) + suffix,
-            display_number(delta, decimal=decimal, delta=True) + (" 个百分点" if suffix else ""),
+            *side_values,
+            "—"
+            if delta is None
+            else display_number(delta, decimal=decimal, delta=True)
+            + (" 个百分点" if suffix else ""),
             unit,
         ]
         cells = "".join(f"<td>{html.escape(value)}</td>" for value in values)
+        if reasons:
+            cells = cells.replace(
+                "</td>", f'<p class="notice">{html.escape("；".join(reasons))}</p></td>', 1
+            )
         movement = html.escape(movement)
         if transition and not transition["limited"]:
             movement = (
                 f'<strong class="up">新增 {transition["entered"]}</strong> / '
                 f'<strong class="down">退出 {transition["exited"]}</strong>'
             )
+        if transition and integrity.get("comparisonIssues"):
+            movement = "新增 — / 退出 —（比较口径或路径映射受限）"
         if transition and transition.get("warning"):
             movement += f'<p class="notice">{html.escape(transition["warning"])}</p>'
-        rows.append(f"<tr>{cells}<td>{movement}</td></tr>")
+        rows.append(f'<tr data-static-metric="{html.escape(key)}">{cells}<td>{movement}</td></tr>')
     limits = "".join(
         f"<li>{html.escape(item)}</li>" for item in data["meta"].get("limitations", LIMITATIONS)
     )
@@ -382,7 +432,7 @@ def main() -> None:
             return
         template_dir = Path(__file__).parent
         template = (template_dir / "report.html").read_text(encoding="utf-8")
-        # 先替换模板资产，再注入不可信数据，避免数据中的占位符被二次解释。
+        # 单次替换不重新解释静态文案或 JSON 中的模板标记。
         replacements = {
             "@@STYLE@@": (template_dir / "prototype.css").read_text(encoding="utf-8"),
             "@@SCRIPT@@": (template_dir / "prototype.js").read_text(encoding="utf-8"),
@@ -391,8 +441,7 @@ def main() -> None:
             "@@STATIC@@": static_overview(data),
             "@@DATA@@": safe_json(data),
         }
-        for marker, value in replacements.items():
-            template = template.replace(marker, value)
+        template = fill_template(template, replacements)
         destination = output / "cmetrics-prototype.html"
         temporary = output / ".cmetrics-prototype.html.tmp"
         temporary.write_text(template, encoding="utf-8")

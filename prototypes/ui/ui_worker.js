@@ -9,20 +9,14 @@ function uiPage(items, requested, size) {
 }
 
 function uiFile(f) {
-  const v=S.files,path=S.paths[f],before=v.bEx[f]?[v.bN[f],v.bR[f],v.bD[f]]:undefined,after=v.cEx[f]?[v.cN[f],v.cR[f],v.cD[f]]:undefined;
-  const b=before?.[0]??0,c=after?.[0]??0,delta=c-b,flags=[];
-  if(delta>0)flags.push('growth');
-  if(delta<0)flags.push('decrease');
-  if(!before&&after)flags.push('entered');
-  if(before&&!after)flags.push('exited');
-  return {id:`file:${path}`,kind:'file',path,name:path.slice(path.lastIndexOf('/')+1),before,after,b,c,delta,flags,changed:delta!==0};
+  return uiSource('code').detail(f,{});
 }
 
 function uiAggregate(directory) {
   if(!directory)return {baseline:{value:0,valid:0,count:0},current:{value:0,valid:0,count:0},delta:0};
   const baseline={value:directory.bC,valid:directory.bF,count:directory.bF};
   const current={value:directory.cC,valid:directory.cF,count:directory.cF};
-  return {baseline,current,delta:current.value-baseline.value};
+  return {baseline,current,delta:baseline.value==null||current.value==null?null:current.value-baseline.value};
 }
 
 function uiMatchesNumber(row, condition) {
@@ -76,10 +70,10 @@ function uiQuery(state) {
 
 function uiOverview(state) {
   if(!UI.overview){
-    const files={growth:{rows:[],total:0},decrease:{rows:[],total:0},unchanged:{rows:[],total:0}};
+    const files={growth:{rows:[],total:0},decrease:{rows:[],total:0},unchanged:{rows:[],total:0},exceptions:{rows:[],total:0}};
     // 概览只保留每种方向前8个对象，不复制完整查询行。
     for(let f=0;f<S.F;f++){
-      const row=uiFile(f),direction=row.delta>0?'growth':row.delta<0?'decrease':'unchanged',group=files[direction];
+      const row=uiFile(f),direction=uiException(row)?'exceptions':row.delta>0?'growth':row.delta<0?'decrease':'unchanged',group=files[direction];
       group.total++;
       group.rows.push({...row,fileId:f});
       group.rows.sort((a,b)=>Math.abs(b.delta)-Math.abs(a.delta)||a.fileId-b.fileId);
@@ -91,18 +85,19 @@ function uiOverview(state) {
     for(const directory of directories){const [lo,hi]=scopeRange(directory.p);covered.fill(1,lo,hi);}
     for(let f=0;f<S.F;f++)if(!covered[f]){
       const row=uiFile(f);
-      chart.push({path:row.path,file:true,baseline:{value:row.b,count:row.before?1:0,valid:row.before?1:0},current:{value:row.c,count:row.after?1:0,valid:row.after?1:0},delta:row.delta});
+      chart.push({path:row.path,file:true,baseline:{value:row.b,count:row.before?1:0,valid:row.before&&row.b!=null?1:0},current:{value:row.c,count:row.after?1:0,valid:row.after&&row.c!=null?1:0},delta:row.delta});
     }
     chart.sort((a,b)=>b.delta-a.delta||(a.path<b.path?-1:a.path>b.path?1:0));
     let maximum=1;for(const row of chart)maximum=Math.max(maximum,Math.abs(row.delta));
     UI.overview={files,chart,maximum};
   }
-  const shown=UI.overview.chart.filter(row=>state.overviewChanges.includes(row.delta>0?'growth':row.delta<0?'decrease':'unchanged'));
+  const shown=UI.overview.chart.filter(row=>row.delta!=null&&state.overviewChanges.includes(row.delta>0?'growth':row.delta<0?'decrease':'unchanged'));
   return {files:UI.overview.files,chart:{...uiPage(shown,state.chartPage,20),maximum:UI.overview.maximum}};
 }
 
 function uiTransitions() {
-  const transitions={...S.meta.thresholdTransitions};
+  const transitions=structuredClone(S.meta.thresholdTransitions);
+  if(uiContext.comparisonIssues.length)for(const value of Object.values(transitions))value.limited=true;
   if(uiContext.scenario==='limited'){
     const source=uiSource('hugeCC');let entered=0,exited=0,limited=false;
     for(let i=0;i<source.count;i++)if(source.included(i)){
@@ -130,6 +125,7 @@ function uiSnapshot(state) {
   }
   const evidence=typeof uiEvidence==='function'?uiEvidence(state,query.rows.find(row=>row.id===(state.selected??query.rows[0]?.id))??query.rows[0]):null;
   return {
+    integrity:S.meta.integrity||{},
     impact:uiImpact(state),
     evidence,
     model:{sides,fileRows:query.rows,methodRows:[],folderRows:[],dirs:[],limited:state.scenario==='limited'},

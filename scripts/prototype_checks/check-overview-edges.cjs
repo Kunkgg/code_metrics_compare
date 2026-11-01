@@ -20,10 +20,10 @@ app=load(input=>{input.current=structuredClone(input.baseline);});
 for(const [key,type] of [['huge_headerfile_ratio','hugeHeader'],['huge_non_headerfile_total','hugeSource'],['huge_method_total','hugeMethod'],['huge_cyclomatic_complexity_ratio','hugeCC'],['huge_folder_ratio','folders']]){
   const item=app.overviewMetric([key,type]);assert(item.directions.join()==='unchanged'&&item.t.entered===0&&item.t.exited===0,`${key} 真正无进出时归为无变化`);
 }
-// 两位序列化可能让不同原始均值相等，不能假设交换扫描后每项均值必然减少。
+// 两位序列化相等时仍保留原始分子／分母的方向；显示值和 Golden 序列化值不变。
 app=load(input=>{input.baseline.summary_metrics.cyclomatic_complexity_per_method=6.39;input.current.summary_metrics.cyclomatic_complexity_per_method=6.39;});
 const roundedMean=app.overviewMetric(['cyclomatic_complexity_per_method','cc']);
-assert(roundedMean.d===0&&roundedMean.directions.join()==='unchanged','两侧序列化均值相等时观测差为零');
+assert(roundedMean.d>0&&roundedMean.directions.join()==='growth','两侧显示均值相等但原始比例增长仍归为增长');
 for(const sign of [-1,1]){
   app=load(input=>{input.current.summary_metrics.lines_per_file=input.baseline.summary_metrics.lines_per_file+sign*1e-9;});
   assert(app.overviewMetric(['lines_per_file','code']).directions.join()===(sign>0?'growth':'decrease'),'小于显示与六位精度的非零差值保持真实方向');

@@ -8,7 +8,7 @@ from typing import Any
 
 from prototypes.performance.prototype_capacity import BLOCK_ORDER, build_payload, json_block
 from prototypes.resource_usage import peak_rss_mib
-from prototypes.ui.prototype import safe_json, static_overview
+from prototypes.ui.prototype import fill_template, safe_json, static_overview
 
 
 def build_compact_report(
@@ -46,6 +46,7 @@ def build_compact_report(
         **(ui_meta or {}),
         "compact": True,
         "unionFiles": meta["scale"]["unionFiles"],
+        "integrity": meta.get("integrity", {}),
     }
     data = {"meta": display_meta}
     for side in ("baseline", "current"):
@@ -67,16 +68,18 @@ def build_compact_report(
         for kind in BLOCK_ORDER
     )
     template = (directory / "report.html").read_text(encoding="utf-8")
-    # 资产先于不可信 JSON 注入；输入中的模板标记不再参与替换。
-    for marker, value in {
-        "@@STYLE@@": (directory / "prototype.css").read_text(encoding="utf-8"),
-        "@@SCRIPT@@": script,
-        "@@PROTOTYPE_MODE@@": "false" if production_preview else "true",
-        "@@READER_ASSETS@@": assets,
-        "@@STATIC@@": static_overview(data),
-        "@@DATA@@": safe_json(data),
-    }.items():
-        template = template.replace(marker, value)
+    # 单次替换防止不可信数据中的模板标记被二次解释。
+    template = fill_template(
+        template,
+        {
+            "@@STYLE@@": (directory / "prototype.css").read_text(encoding="utf-8"),
+            "@@SCRIPT@@": script,
+            "@@PROTOTYPE_MODE@@": "false" if production_preview else "true",
+            "@@READER_ASSETS@@": assets,
+            "@@STATIC@@": static_overview(data),
+            "@@DATA@@": safe_json(data),
+        },
+    )
     output_dir.mkdir(parents=True, exist_ok=True)
     destination = output_dir / "cmetrics-prototype.html"
     temporary = output_dir / ".cmetrics-prototype.html.tmp"

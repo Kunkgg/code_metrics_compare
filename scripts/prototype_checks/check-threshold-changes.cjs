@@ -49,7 +49,7 @@ for(const [bLimit,cLimit,status] of [[3,2,'entered'],[2,3,'exited']]){
     assert(src.included(index)&&row.thresholdChanged&&row.warning.includes('不证明代码恶化或改善'));
     assert(row.flags.includes(status)&&!row.flags.includes('incomparable'));
     assert(worker.check.uiMatchesStatus(row,'changes')&&!worker.check.uiMatchesStatus(row,'unchanged'));
-    if(type!=='folders')assert.equal(row.delta,0);else assert.equal(row.delta,null,'未申报侧原值仍未知');
+    assert.equal(row.delta,0,'未申报侧恢复成员数用于观测值，扫描原始申报仍在证据中独立显示');
     checks+=4;
   }
   // 非阈值未知和歧义仍限制清单进出。
@@ -62,7 +62,7 @@ for(const [bLimit,cLimit,status] of [[3,2,'entered'],[2,3,'exited']]){
   S.mC={count:2,views:{na:[0,0],ln:[3,3],cc:[3,3]}};S.rangeC=[0,0,2,2];
   const ambiguousContext={S,structuredClone};vm.runInNewContext(workerSource,ambiguousContext);ambiguousContext.check.uiSetContext('normal');
   const ambiguous=ambiguousContext.check.uiSource('hugeMethod').row(0);
-  assert(ambiguous.ambiguous&&!ambiguous.transitionKnown&&ambiguous.delta===null);
+  assert(ambiguous.ambiguous&&!ambiguous.transitionKnown&&ambiguous.delta===3,'同名集合按侧汇总6−3，但不推断逐函数超限进出');
   assert(!ambiguous.flags.includes('entered')&&!ambiguous.flags.includes('exited'));
   S.dirs[0].kC=4;
   const mismatch=worker.check.uiSource('folders').row(0);
@@ -95,7 +95,7 @@ from prototypes.ui.prototype import threshold_transitions, static_overview, THRE
 from prototypes.performance.prototype_capacity import compact_threshold_transitions, static_overview as capacity_static
 for b, c, status in [(3, 2, 'entered'), (2, 3, 'exited')]:
     def report(limit):
-        return {'summary_metrics': {'huge_threshold': dict.fromkeys(THRESHOLD_KEYS.values(), limit), 'huge_headerfile_total': int(3 > limit)}, 'detail_metrics': {'file_sizes': {'/repo/d/a.h': [3,3,0], '/repo/d/b.c': [3,3,0]}, 'method_metrics': [{'file_name':'/repo/d/b.c','method_name':'work','nbnc_loc':3,'cyclomatic_complexity':3}, {}], 'huge_folders': {'/repo/d':3} if 3 > limit else {}}}
+        return {'summary_metrics': {'huge_threshold': dict.fromkeys(THRESHOLD_KEYS.values(), limit), 'huge_headerfile_total': int(3 > limit)}, 'detail_metrics': {'file_sizes': {'/repo/d/a.h': [3,3,0], '/repo/d/b.c': [3,3,0], '/repo/d/sub/empty.c': [0,0,0]}, 'method_metrics': [{'file_name':'/repo/d/b.c','method_name':'work','nbnc_loc':3,'cyclomatic_complexity':3}, {}], 'huge_folders': {'/repo/d':3} if 3 > limit else {}}}
     baseline, current = report(b), report(c)
     expected = threshold_transitions(baseline, current)
     def compact(r):

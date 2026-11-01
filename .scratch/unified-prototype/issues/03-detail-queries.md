@@ -70,3 +70,6 @@ Status: claimed
 - 源码归档分支 `spike/unified-prototype`，本轮提交标题“原型：接通小规模明细、净影响与完整分页证据”；恢复前基点 `de61d37`。
 
 追加确认：用户回复“yes”，仅交换 `threshold-change / hugeMethod all` 两行使 `above/a.c` 在前，更新审核范围及业务摘要。独立差异核对确认字段值、其余查询及两侧输入不变。完整 pytest 484 项、参考 UI 414 项业务断言、Worker 1,524 项检查全部通过，无 xfail。证据在 `output/unified-prototype/sort-approved-{pytest.txt,worker.json,verification.json}`；历史失败输出不覆盖。满规模、资源门槛及 Windows／Edge 等未验范围保持原登记。
+
+
+本轮边界收口：见 [07 小规模需求追溯](07-small-boundaries.md)。真实 JSON 的未知值／未知阈值、目录覆盖及版本／映射限制已贯通构建与正常场景三页／静态；零分母、组合歧义、注入、换行字典、确定性乱序响应和全部证据分页／返回完成独立补验。Golden 未改，完整 pytest 484 项通过。旧 workspace 热样本包含重选当前指标的无请求点击，不能用作真实查询性能通过依据；新脚本已修正，历史产物保留。满规模与资源收口转入 [06](06-capacity.md)，Windows／Edge 未测。

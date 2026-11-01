@@ -114,3 +114,8 @@ Golden 候选人工审核的通用修正：扫描明细字段统一为 `file_dup
 原型源码与验证脚本继续归档在 `spike/unified-prototype`，本轮提交标题“原型：接通小规模明细、净影响与完整分页证据”作为上下文指针；本轮恢复前源码基点 `de61d37`。不把原型提升为正式产品。原始产物位于 `output/unified-prototype/resume-*`，环境及输入／源码／HTML／uv.lock SHA-256 在 `resume-environment.json`。大规模变化／分布矩阵、浏览器资源／长时、断网／注入完整回归及 Windows／Edge 仍未验收，规格状态保留 claimed。
 
 追加确认：用户回复“yes”，仅交换 `threshold-change / hugeMethod all` 两行使 `above/a.c` 在前，更新审核范围及业务摘要。独立差异核对确认字段值、其余查询及两侧输入不变。完整 pytest 484 项、参考 UI 414 项业务断言、Worker 1,524 项检查全部通过，无 xfail。证据在 `output/unified-prototype/sort-approved-{pytest.txt,worker.json,verification.json}`；历史失败输出不覆盖。满规模、资源门槛及 Windows／Edge 等未验范围保持原登记。
+
+本轮接续检查点：阶段 2–4 的本机小规模边界已按 U01–U07、AT-01–05 补验，追溯与重放入口见 [07 小规模边界](issues/07-small-boundaries.md)。修复零分母显示、真实未知值和阈值、正常场景覆盖／汇总／版本／映射限制、组合异常、HTML／模板注入以及换行字典索引错位；序列化均值相同但原始比例变化的概览方向也已修正。未改任何已批准 Golden 或两份正式设计文档。最终 `next-final-validated` 回放通过（概览 272、三页阈值 173、零分母 114、当前位置／其他度量 13、故障／乱序 22 项，另含初始化／运行失败重试、断网、静态和数据注入）；独立未知／组合异常 73／81、未知阈值 294、字典 45、证据浏览器 251 项通过。完整 pytest 484 项通过。旧 workspace 热样本含未实际请求的重选指标点击，保留历史但撤回其真实查询性能含义；修订脚本先切离再计时，新小规模 20 次实际查询 P95 为 118.4–176.1 ms（最后概览方向修复前采集，修复后另验方向，不据此声明满规模通过）。
+
+[阶段 5](issues/06-capacity.md) 已准备十组 100k／1m 输入：1%／30%／100% × mixed／wide／deep，另有 20% 集合进出组。逐侧原始输入均至少 1.8 亿非空非注释代码行。正式冷热矩阵、完整进程树差分和长时继续执行；构建后源码改变的校准或等待目录明确标为非验收证据。Windows Chrome／Edge 与 macOS Edge 仍未测，规格状态保持 claimed。
+

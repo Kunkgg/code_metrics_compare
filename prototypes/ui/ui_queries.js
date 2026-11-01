@@ -9,7 +9,7 @@ const uiException=row=>row.flags.some(flag=>['unknown','ambiguous','incomparable
 function uiSetContext(scenario){
   if(uiContext?.scenario===scenario)return uiContext;
   const summaries=structuredClone(S.meta.summaries);
-  uiContext={scenario,summaries,unknownDupFile:-1,limitedFolder:-1};
+  uiContext={scenario,summaries,unknownDupFile:-1,limitedFolder:-1,comparisonIssues:S.meta.integrity?.comparisonIssues||[]};
   if(scenario==='limited'){
     const path=S.meta.storyPaths?.utilsGrow;
     uiContext.unknownDupFile=path?S.paths.indexOf(path.replace(S.meta.root+'/','')):S.paths.findIndex((p,i)=>S.files.cEx[i]&&!uiHeader(p)&&S.files.cD[i]>0);
@@ -145,10 +145,11 @@ function uiSource(type){
       entered=transitionKnown&&!(b>limits.b)&&c>limits.c;exited=transitionKnown&&b>limits.b&&!(c>limits.c);
     }
     const mismatch=type==='folders'&&(uiContext.limitedFolder===i||S.dirs[i].kB!=null&&S.dirs[i].kB!==uiMembers(S.dirs[i]).b||S.dirs[i].kC!=null&&S.dirs[i].kC!==uiMembers(S.dirs[i]).c);
-    const incomparable=!!limits&&(!Number.isFinite(limits.b)||!Number.isFinite(limits.c)||mismatch);
+    const incomparable=uiContext.comparisonIssues.length>0||!!limits&&(!Number.isFinite(limits.b)||!Number.isFinite(limits.c)||mismatch);
     if(type==='folders'&&!incomparable){const members=uiMembers(S.dirs[i]);entered=!(members.b>limits.b)&&members.c>limits.c;exited=members.b>limits.b&&!(members.c>limits.c);}
     if(incomparable)transitionKnown=false;
-    if(ambiguous)flags.push('ambiguous');else if(b==null||c==null)flags.push('unknown');
+    if(ambiguous)flags.push('ambiguous');
+    if(b==null||c==null)flags.push('unknown');
     if(incomparable)flags.push('incomparable');
     const delta=b==null||c==null?null:c-b;
     if(!incomparable&&delta>0)flags.push('growth');if(!incomparable&&delta<0)flags.push('decrease');
@@ -156,9 +157,10 @@ function uiSource(type){
     const objectPath=path(i),objectName=name(i),kind=file?'file':method?'method':position?type:'folder';
     const thresholdChanged=!!limits&&Number.isFinite(limits.b)&&Number.isFinite(limits.c)&&limits.b!==limits.c;
     const result={thresholdChanged,warning:thresholdChanged?'阈值变化；两侧分别按各自阈值严格大于判定，清单进出不证明代码恶化或改善。':null,kind,path:objectPath,name:objectName,b,c,delta,flags,changed:ambiguous||delta!==0||thresholdChanged&&transitionKnown&&(entered||exited)||incomparable,ambiguous,transitionKnown};
+    if(uiContext.comparisonIssues.length)result.warning=[result.warning,...uiContext.comparisonIssues].filter(Boolean).join('；');
     if(method){
       result.beforeCount=m.bCount[i];result.afterCount=m.cCount[i];
-      if(ambiguous){result.comparisonBasis='same-name-total';result.warning='同名函数可能混淆；此处比较同文件同名函数集合的总量。';}
+      if(ambiguous){result.comparisonBasis='same-name-total';result.warning=[result.warning,'同名函数可能混淆；此处比较同文件同名函数集合的总量。'].filter(Boolean).join('；');}
     }
     if(position)result.line=p[i].line;
     return result;
@@ -169,8 +171,8 @@ function uiSource(type){
     result.id=`${result.kind}:${identity}`;
     if(file){
       const v=S.files;
-      result.before=v.bEx[i]?[uiFileValue(i,'code','baseline'),v.bR[i],uiFileValue(i,'duplication','baseline')]:undefined;
-      result.after=v.cEx[i]?[uiFileValue(i,'code','current'),v.cR[i],uiFileValue(i,'duplication','current')]:undefined;
+      result.before=v.bEx[i]?[uiFileValue(i,'code','baseline'),v.bValid&&!(v.bValid[i]&2)?null:v.bR[i],uiFileValue(i,'duplication','baseline')]:undefined;
+      result.after=v.cEx[i]?[uiFileValue(i,'code','current'),v.cValid&&!(v.cValid[i]&2)?null:v.cR[i],uiFileValue(i,'duplication','current')]:undefined;
     }
     if(method){
       result.recordPages={};

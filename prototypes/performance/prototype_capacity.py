@@ -11,10 +11,13 @@ import gzip
 import html
 import itertools
 import json
+import shlex
 import struct
 import time
 from array import array
 from collections import Counter
+from collections.abc import Iterable
+from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
@@ -101,7 +104,7 @@ class SideData:
         self.summary = report["summary_metrics"]
         self.maxima = detail["method_metrics"][-1]
         self.files = detail["file_sizes"]
-        self.methods: list[tuple[int, int, int, int, int, int]] = []
+        self.methods: list[tuple[int, int, int, int, int | None, int | None]] = []
         for m in detail["method_metrics"][:-1]:
             self.methods.append(
                 (
@@ -145,60 +148,96 @@ class SideData:
             self.redundant.extend((f, line) for line in lines)
         self.redundant.sort()
         self.huge_folders = {rel_path(p, root): n for p, n in detail["huge_folders"].items()}
+        self.directory_members = directory_member_counts(rel_path(p, root) for p in self.files)
+
+
+def directory_member_counts(paths: Iterable[str]) -> dict[str, int]:
+    """从扫描可见路径恢复直接成员；子目录去重，不把后代文件重复计入。"""
+    members: dict[str, set[str]] = {}
+    for path in paths:
+        parts = path.split("/")
+        for i in range(len(parts)):
+            parent = "/".join(parts[:i])
+            members.setdefault(parent, set()).add(parts[i])
+    return {path: len(children) for path, children in members.items()}
 
 
 def compact_threshold_transitions(
     baseline: SideData, current: SideData
 ) -> tuple[dict[str, Any], int]:
-    """沿用 UI 的超限集合口径，跨侧重名函数以共享文件／名称 ID 排除。"""
+    """保留已知对象的进出；未知、重名或目录覆盖不足的对象不参与确定计数。"""
     ambiguous: set[tuple[int, int]] = set()
     for data in (baseline, current):
         counts = Counter((m[0], m[1]) for m in data.methods)
         ambiguous.update(key for key, count in counts.items() if count > 1)
     del counts
-    limited = {"hugeMethod": False, "hugeCC": False}
+    kinds = ("hugeHeader", "hugeSource", "hugeMethod", "hugeCC", "folders")
+    excluded: dict[str, set[Any]] = {kind: set() for kind in kinds}
 
     def objects(data: SideData) -> dict[str, set[Any]]:
         thresholds = data.summary["huge_threshold"]
-        result: dict[str, set[Any]] = {
-            "hugeHeader": {
-                p
-                for p, v in data.files.items()
-                if is_header_file(p) and v[0] > thresholds["huge_headerfile"]
-            },
-            "hugeSource": {
-                p
-                for p, v in data.files.items()
-                if not is_header_file(p) and v[0] > thresholds["huge_non_headerfile"]
-            },
-            "hugeMethod": set(),
-            "hugeCC": set(),
-            "folders": {
-                p for p, count in data.huge_folders.items() if count > thresholds["huge_folder"]
-            },
-        }
+        result: dict[str, set[Any]] = {kind: set() for kind in kinds}
+        for path, values in data.files.items():
+            kind = "hugeHeader" if is_header_file(path) else "hugeSource"
+            threshold = "huge_headerfile" if kind == "hugeHeader" else "huge_non_headerfile"
+            if values[0] is None or thresholds[threshold] is None:
+                excluded[kind].add(path)
+            elif values[0] > thresholds[threshold]:
+                result[kind].add(path)
         for method in data.methods:
             key = (method[0], method[1])
             for kind, index, threshold in (
                 ("hugeMethod", 4, "huge_method"),
                 ("hugeCC", 5, "huge_cyclomatic_complexity"),
             ):
-                if method[index] > thresholds[threshold]:
+                value = method[index]
+                if value is None or thresholds[threshold] is None:
+                    excluded[kind].add(key)
+                elif value > thresholds[threshold]:
                     if key in ambiguous:
-                        limited[kind] = True
+                        excluded[kind].add(key)
                     else:
                         result[kind].add(key)
         return result
 
     before, after = objects(baseline), objects(current)
+    # 两侧任一申报的目录才进入超大目录任务；未申报侧仍可恢复可见成员。
+    for data, result in ((baseline, before), (current, after)):
+        members = getattr(data, "directory_members", None)
+        if members is None:
+            members = directory_member_counts(data.files)
+        for path in baseline.huge_folders.keys() | current.huge_folders.keys():
+            recovered = members.get(path, 0)
+            declared = data.huge_folders.get(path)
+            if data.summary["huge_threshold"]["huge_folder"] is None or (
+                declared is not None and declared != recovered
+            ):
+                excluded["folders"].add(path)
+            elif recovered > data.summary["huge_threshold"]["huge_folder"]:
+                result["folders"].add(path)
     return {
         kind: {
-            "entered": len(after[kind] - before[kind]),
-            "exited": len(before[kind] - after[kind]),
-            "limited": limited.get(kind, False),
+            "entered": len(after[kind] - before[kind] - excluded[kind]),
+            "exited": len(before[kind] - after[kind] - excluded[kind]),
+            "limited": bool(excluded[kind])
+            or any(
+                data.summary["huge_threshold"][THRESHOLD_KEYS[kind]] is None
+                for data in (baseline, current)
+            ),
             **threshold_comparison(baseline.summary, current.summary, kind),
+            **(
+                {
+                    "thresholdChanged": False,
+                    "warning": "超限阈值未知；无法确定清单进出及净影响。",
+                }
+                if any(
+                    data.summary["huge_threshold"][THRESHOLD_KEYS[kind]] is None
+                    for data in (baseline, current)
+                )
+                else {}
+            ),
         }
-        for kind in before
+        for kind in kinds
     }, len(ambiguous)
 
 
@@ -236,7 +275,8 @@ def build_dirs(
             d = rel.rsplit("/", 1)[0] if "/" in rel else ""
             while True:
                 dirs[d][f"{side}F"] += 1
-                dirs[d][f"{side}C"] += value
+                total = dirs[d][f"{side}C"]
+                dirs[d][f"{side}C"] = None if total is None or value is None else total + value
                 if not d:
                     break
                 d = dirs[d]["par"]
@@ -254,6 +294,204 @@ def build_dirs(
         d["kB"] = baseline.huge_folders.get(d["p"])
         d["kC"] = current.huge_folders.get(d["p"])
     return ordered
+
+
+def compact_integrity(
+    baseline: SideData, current: SideData, dirs: list[dict[str, Any]], root: str
+) -> dict[str, Any]:
+    """保留扫描原始汇总，另外提供可消费的未知、复算冲突及比较范围限制。"""
+    issues: dict[str, list[str]] = {}
+    comparison: list[str] = []
+
+    def add(keys: Iterable[str], reason: str) -> None:
+        for key in keys:
+            if reason not in issues.setdefault(key, []):
+                issues[key].append(reason)
+
+    # 基础量异常同时影响其依赖指标；不把未确认的汇总替换为明细小计。
+    dependencies = {
+        "code_size": [
+            "lines_per_file",
+            "code_duplication_ratio",
+            "non_hfile_code_duplication_ratio",
+            "unsafe_functions_kloc",
+            "redundant_code_kloc",
+        ],
+        "code_duplication_total": ["code_duplication_ratio"],
+        "non_hfile_code_duplication_total": ["non_hfile_code_duplication_ratio"],
+        "method_lines": ["lines_per_method"],
+        "cyclomatic_complexity_total": ["cyclomatic_complexity_per_method"],
+        "files_total": [
+            "lines_per_file",
+            "huge_headerfile_ratio",
+            "huge_non_headerfile_ratio",
+            "file_duplication_ratio",
+            "non_hfile_duplication_ratio",
+        ],
+        "methods_total": [
+            "lines_per_method",
+            "cyclomatic_complexity_per_method",
+            "huge_method_ratio",
+            "huge_cyclomatic_complexity_ratio",
+        ],
+        "folders_total": ["huge_folder_ratio"],
+        "huge_headerfile_total": ["huge_headerfile_ratio"],
+        "huge_non_headerfile_total": ["huge_non_headerfile_ratio"],
+        "huge_method_total": ["huge_method_ratio"],
+        "huge_cyclomatic_complexity_total": ["huge_cyclomatic_complexity_ratio"],
+        "huge_folder_total": ["huge_folder_ratio"],
+    }
+
+    def affected(key: str) -> list[str]:
+        return [key, *dependencies.get(key, [])]
+
+    for label, tag, data in (("基线", "b", baseline), ("当前", "c", current)):
+        summary = data.summary
+        totals: dict[str, int] = dict.fromkeys(
+            (
+                "code_size",
+                "raw_lines",
+                "code_duplication_total",
+                "non_hfile_code_duplication_total",
+                "method_lines",
+                "cyclomatic_complexity_total",
+                "huge_headerfile_total",
+                "huge_non_headerfile_total",
+                "huge_method_total",
+                "huge_cyclomatic_complexity_total",
+            ),
+            0,
+        )
+        unknown: set[str] = set()
+        unknown_thresholds = {
+            threshold + "_total"
+            for threshold in THRESHOLD_KEYS.values()
+            if summary["huge_threshold"][threshold] is None
+        }
+        for key in sorted(unknown_thresholds):
+            unknown.add(key)
+            add(affected(key), f"{label}超限阈值未知，无法复算 {key} 或确定清单进出及净影响。")
+        for path, values in data.files.items():
+            for index, key in ((0, "code_size"), (1, "raw_lines"), (2, "code_duplication_total")):
+                if values[index] is None:
+                    unknown.add(key)
+                else:
+                    totals[key] += values[index]
+            header = is_header_file(path)
+            if not header:
+                if values[2] is None:
+                    unknown.add("non_hfile_code_duplication_total")
+                else:
+                    totals["non_hfile_code_duplication_total"] += values[2]
+            key = "huge_headerfile_total" if header else "huge_non_headerfile_total"
+            limit = summary["huge_threshold"][
+                "huge_headerfile" if header else "huge_non_headerfile"
+            ]
+            if values[0] is None or limit is None:
+                unknown.add(key)
+            else:
+                totals[key] += int(values[0] > limit)
+        for method in data.methods:
+            for index, key, huge, threshold in (
+                (4, "method_lines", "huge_method_total", "huge_method"),
+                (
+                    5,
+                    "cyclomatic_complexity_total",
+                    "huge_cyclomatic_complexity_total",
+                    "huge_cyclomatic_complexity",
+                ),
+            ):
+                value = method[index]
+                if value is None:
+                    unknown.update((key, huge))
+                else:
+                    totals[key] += value
+                    if summary["huge_threshold"][threshold] is not None:
+                        totals[huge] += int(value > summary["huge_threshold"][threshold])
+        totals.update(
+            files_total=len(data.files),
+            methods_total=len(data.methods),
+            folders_total=sum(d[f"{tag}F"] > 0 for d in dirs),
+        )
+        huge_folders = 0
+        for directory in dirs:
+            recovered = data.directory_members.get(directory["p"], 0)
+            declared = directory["kB" if tag == "b" else "kC"]
+            limit = summary["huge_threshold"]["huge_folder"]
+            over = limit is not None and recovered > limit
+            huge_folders += int(over)
+            if (declared is not None and declared != recovered) or (declared is None and over):
+                add(
+                    affected("huge_folder_total"),
+                    f"{label}目录 {directory['p'] or '/'} 的申报超大目录与扫描可见直接成员覆盖不一致。",
+                )
+        totals["huge_folder_total"] = huge_folders
+        for key in sorted(unknown - unknown_thresholds):
+            add(affected(key), f"{label}明细含未知值，无法完整复算 {key}。")
+        for key, expected in totals.items():
+            if key not in unknown and summary.get(key) != expected:
+                add(
+                    affected(key),
+                    f"{label}汇总 {key} 与明细复算不一致（汇总 {summary.get(key)}，明细 {expected}）。",
+                )
+        for key, numerator, denominator, scale in (
+            ("lines_per_file", "code_size", "files_total", 1),
+            ("lines_per_method", "method_lines", "methods_total", 1),
+            ("cyclomatic_complexity_per_method", "cyclomatic_complexity_total", "methods_total", 1),
+            ("code_duplication_ratio", "code_duplication_total", "code_size", 100),
+            (
+                "non_hfile_code_duplication_ratio",
+                "non_hfile_code_duplication_total",
+                "code_size",
+                100,
+            ),
+            ("huge_headerfile_ratio", "huge_headerfile_total", "files_total", 100),
+            ("huge_non_headerfile_ratio", "huge_non_headerfile_total", "files_total", 100),
+            ("huge_method_ratio", "huge_method_total", "methods_total", 100),
+            (
+                "huge_cyclomatic_complexity_ratio",
+                "huge_cyclomatic_complexity_total",
+                "methods_total",
+                100,
+            ),
+            ("huge_folder_ratio", "huge_folder_total", "folders_total", 100),
+        ):
+            if numerator in unknown or denominator in unknown or not totals[denominator]:
+                continue
+            expected = (Decimal(totals[numerator]) * scale / Decimal(totals[denominator])).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_UP
+            )
+            actual = summary.get(key)
+            if (
+                actual is None
+                or Decimal(str(actual)).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+                != expected
+            ):
+                add(
+                    [key],
+                    f"{label}汇总 {key} 与明细按两位小数复算不一致（汇总 {actual}，明细 {expected}）。",
+                )
+        try:
+            command = shlex.split(summary.get("command", ""))
+            scan_root = command[command.index("-fp") + 1]
+        except (ValueError, IndexError):
+            comparison.append(
+                f"{label} command 未提供可识别的 -fp 扫描根，无法确认 manifest.root 的路径映射。"
+            )
+        else:
+            if scan_root.rstrip("/") != root.rstrip("/"):
+                comparison.append(
+                    f"{label} command 的扫描根 {scan_root} 与 manifest.root {root} 不一致，路径映射尚未确认。"
+                )
+    b_version, c_version = (
+        baseline.summary.get("cmetrics_version"),
+        current.summary.get("cmetrics_version"),
+    )
+    if not b_version or not c_version or b_version != c_version:
+        comparison.append(
+            f"两侧 cmetrics_version 不同或缺失（基线 {b_version}，当前 {c_version}），度量口径可比性尚未确认。"
+        )
+    return {"summaryIssues": issues, "comparisonIssues": comparison}
 
 
 def static_overview(meta: dict[str, Any]) -> str:
@@ -289,7 +527,7 @@ def build_payload(input_dir: Path) -> tuple[dict[str, Any], dict[str, str]]:
     root = manifest["root"]
 
     # 先读两侧文件路径并集与名字并集，再逐侧抽取，避免两份完整报告同时驻留。
-    side_paths: dict[str, dict[str, list[int]]] = {}
+    side_paths: dict[str, dict[str, list[int | None]]] = {}
     all_names: set[str] = set()
     for side in ("baseline", "current"):
         report = json.loads((input_dir / f"{side}.json").read_text(encoding="utf-8"))
@@ -319,7 +557,7 @@ def build_payload(input_dir: Path) -> tuple[dict[str, Any], dict[str, str]]:
     for label, flag, side in (("基线", "b", baseline), ("当前", "c", current)):
         fis = [m[0] for m in side.methods]
         if any(a > b for a, b in itertools.pairwise(fis)):
-            side.methods.sort()
+            side.methods.sort(key=lambda method: method[:4])
         folder_count = sum(1 for d in dirs if d["p"] and d[f"{flag}F"] > 0)
         print(f"{label}函数 {len(side.methods):,}，目录 {folder_count:,}")
 
@@ -329,7 +567,9 @@ def build_payload(input_dir: Path) -> tuple[dict[str, Any], dict[str, str]]:
         "root": root,
         "maxima": {"baseline": baseline.maxima, "current": current.maxima},
         "thresholdTransitions": transitions,
+        "integrity": compact_integrity(baseline, current, dirs, root),
         "ambiguousMethodCount": ambiguous_count,
+        "dictionaryEncoding": "json",
         "directoryCount": len(dirs),
         "metricNames": load_metric_names(),
         "summaries": {"baseline": baseline.summary, "current": current.summary},
@@ -347,8 +587,8 @@ def build_payload(input_dir: Path) -> tuple[dict[str, Any], dict[str, str]]:
 
     blocks: dict[str, str] = {
         "meta": json_block(meta),
-        "paths": text_block("\n".join(paths)),
-        "names": text_block("\n".join(names)),
+        "paths": json_block(paths),
+        "names": json_block(names),
         "dirs": json_block(dirs),
     }
     rel_files = {
@@ -356,13 +596,24 @@ def build_payload(input_dir: Path) -> tuple[dict[str, Any], dict[str, str]]:
         for tag, side in (("b", "baseline"), ("c", "current"))
     }
 
-    def col(mapping: dict[str, list[int]], index: int) -> list[int]:
-        return [mapping[p][index] if p in mapping else 0 for p in paths]
+    def col(mapping: dict[str, list[int | None]], index: int) -> list[int]:
+        # 二进制数值列必须为整数；占位值的业务有效性由独立位图决定。
+        return [mapping[p][index] or 0 if p in mapping else 0 for p in paths]
+
+    def valid(mapping: dict[str, list[int | None]]) -> list[int]:
+        return [
+            sum(1 << i for i, value in enumerate(mapping[p]) if value is not None)
+            if p in mapping
+            else 0
+            for p in paths
+        ]
 
     blocks["files"] = bin_block(
         [
             ("bEx", "u8", [1 if p in rel_files["b"] else 0 for p in paths]),
             ("cEx", "u8", [1 if p in rel_files["c"] else 0 for p in paths]),
+            ("bValid", "u8", valid(rel_files["b"])),
+            ("cValid", "u8", valid(rel_files["c"])),
             ("bN", "i32", col(rel_files["b"], 0)),
             ("cN", "i32", col(rel_files["c"], 0)),
             ("bR", "i32", col(rel_files["b"], 1)),
@@ -379,8 +630,13 @@ def build_payload(input_dir: Path) -> tuple[dict[str, Any], dict[str, str]]:
                 ("na", "u32", [m[1] for m in data.methods]),
                 ("st", "u32", [m[2] for m in data.methods]),
                 ("en", "u32", [m[3] for m in data.methods]),
-                ("ln", "u32", [m[4] for m in data.methods]),
-                ("cc", "u32", [m[5] for m in data.methods]),
+                ("ln", "u32", [m[4] or 0 for m in data.methods]),
+                ("cc", "u32", [m[5] or 0 for m in data.methods]),
+                (
+                    "valid",
+                    "u8",
+                    [int(m[4] is not None) | (int(m[5] is not None) << 1) for m in data.methods],
+                ),
             ]
         )
         frag_flat = [(g, fr) for g, (_, frags) in enumerate(data.frag_groups) for fr in frags]
