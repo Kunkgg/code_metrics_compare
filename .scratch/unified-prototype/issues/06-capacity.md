@@ -199,3 +199,9 @@ Windows Chrome/Edge 与 macOS Edge 仍未测；上述失败未修复前，阶段
 ### CDP 复现判定（subagent）
 
 分支 A（Chrome 156，40 冷）：cold-28 第 8 条 TASK_JS eval 复现 `CDP response channel closed`（1/28），daemon 同秒日志 `[cdp] WebSocket Error: Connection reset without closing handshake`，进程树稳定；分支 B（Chrome for Testing 155）：cold-16 同位置同错误同日志（1/16），模式逐字一致。判定：H1 成立且定性为 daemon↔Chrome DevTools WebSocket 被 IO 层 reset（非 Close 帧）；H2 不成立（155/156 均触发，非版本特异）；H3（daemon 内部问题）升为首要待查。重跑策略：换浏览器版本无效，须在测量层加会话级重试（失败会话丢弃、新会话补足、单独标记并保留失败证据）。证据：`output/unified-prototype/stage5-cdp-repro/{verdict.md,verdict.json}` 及 A/B 分支 daemon 日志。复现均为诊断证据，不计入性能验收。
+
+### 测量重试机制（subagent；采样期冻结解除）
+
+首轮矩阵结束，已完成组证据按各自 results.json 内记录的脚本 SHA 定位，采样期源码冻结解除。`measure_unified_capacity.py` 与 `measure_unified_evidence.py` 新增会话级丢弃重试：agent-browser 通道错误签名（`CDP response channel closed`／WebSocket reset 类文本）触发；失败会话整体丢弃，弃样产物移入 `discarded/` 保留；同号会话以新 profile 重建重跑，每会话最多 3 次，耗尽则组按原失败语义停止并保留证据；soak 中途断连整段重启不拼接。results.json 新增可选 `channelRetries` 字段（无重试时缺席）；协议版本 unified-capacity-1→2、scale-evidence-DOM-1→2，limitations 登记重试语义。计时、采样、P95、资源差分语义不变。
+
+校准：签名检测单测 6/6（正例取自 stage5-cdp-repro 真实错误文本）；伪造注入三路径全验证（恢复：两会话各注入一次→丢弃重跑全 sampled、channelRetries 2 条；耗尽：3 次丢弃后组失败 exit 1 保留证据；无注入：无 channelRetries 键、无 discarded/）；evidence 脚本同构路径 fakeE 通过；真实 story 回归：新代码与旧代码（HEAD worktree）结果结构、29 任务集合完全一致，仅协议版本与 limitations 差异。Ruff／Pyright 通过。证据：`output/unified-prototype/stage5-retry-calibration/{NOTES.md,progress.json,fakeA..fakeE,storyA-capacity-old,storyB-capacity-new}`。

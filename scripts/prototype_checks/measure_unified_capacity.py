@@ -7,9 +7,11 @@
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import math
 import platform
+import shutil
 import statistics
 import subprocess
 import sys
@@ -132,6 +134,39 @@ class CapacityBrowser(Browser):
         super().__init__(output, executable, headed=headed)
         self.args[self.args.index("--session") + 1] = f"capacity-{uuid.uuid4().hex[:12]}"
         self.sampler = TreeSampler(profile=output / "profile")
+
+
+# agent-browser daemon与Chrome DevTools间的WebSocket通道偶发被对端reset（约每冷会话4-7%，
+# 页面与浏览器进程树本身存活；判定见output/unified-prototype/stage5-cdp-repro/verdict.md）。
+# CLI把该断连暴露为下列错误文本；命中签名的失败会话整体丢弃，以新profile重建重跑。
+CHANNEL_ERROR_SIGNATURES = (
+    "CDP response channel closed",
+    "Connection reset without closing handshake",
+    "WebSocket protocol error",
+    "WebSocket Error",
+)
+MAX_CHANNEL_RETRIES = 3
+
+
+def channel_error_signature(error: BaseException | None) -> str | None:
+    """异常文本命中DevTools通道断开签名时返回该签名文本，否则返回None。"""
+    if error is None:
+        return None
+    text = f"{type(error).__name__}: {error}"
+    return next((s for s in CHANNEL_ERROR_SIGNATURES if s in text), None)
+
+
+def discard_session(browser: CapacityBrowser, attempt: int) -> str:
+    """尽力关闭残留浏览器会话；被弃会话产物整体移入discarded/子目录保留，返回相对路径。"""
+    try:
+        browser.call("close")
+    except Exception:
+        with contextlib.suppress(Exception):
+            command([*browser.args, "close"])
+    destination = browser.output.parent / "discarded" / f"{browser.output.name}-attempt-{attempt}"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(browser.output), str(destination))
+    return str(destination.relative_to(browser.output.parent))
 
 
 # 所有操作都走真实DOM事件；重选当前指标会直接返回，故每次先切到另一指标。
@@ -439,7 +474,7 @@ def main() -> None:
     input_dir = args.input_dir.resolve()
     files, inventory = file_oracle(input_dir)
     result: dict[str, Any] = {
-        "protocol": "unified-capacity-1",
+        "protocol": "unified-capacity-2",
         "command": sys.argv,
         "inventory": inventory,
         "environment": {
@@ -483,6 +518,10 @@ def main() -> None:
             "指标任务仅检查当前页数量和状态；完整业务预期未独立核对，不计作性能通过",
             "打包构建不含输入生成和完整L1/L2/L3；不能关闭完整报告生成门槛",
             "RSS共享页重计、枚举竞态和采样间隙峰值漏采",
+            "agent-browser与Chrome DevTools的WebSocket通道偶发reset（判定见stage5-cdp-repro/verdict.md）："
+            "命中签名的失败会话整体丢弃，关闭残留会话后以新profile重建同编号会话重跑；"
+            "每会话最多重试3次，soak中断连重启完整soak不拼接两段；"
+            "重试登记于channelRetries、被弃产物保留在discarded/，重试会话的计时、采样与P95语义与首次一致",
         ],
     }
     dump(output / "results.json", result)
@@ -553,63 +592,104 @@ def main() -> None:
         ),
     )
     failed = False
-    for index in range(args.cold_runs):
-        print(f"冷会话 {index + 1}/{args.cold_runs}", flush=True)
-        browser = CapacityBrowser(
-            output / f"cold-{index + 1:02}", args.browser.resolve(), headed=args.headed
-        )
-        run: dict[str, Any] = {"index": index + 1, "cold": [], "hot": [], "soak": []}
-        result["runs"].append(run)
-        try:
-            run["browser"] = browser.start()
-            run["startup"] = browser.open_report(artifact)
-            ready_ms = run["startup"]["probe"]["readyPaintMs"]
-            if ready_ms is None or ready_ms > 10000:
-                run["thresholdFailures"] = [
-                    {"kind": "ready-time", "observedMs": ready_ms, "limitMs": 10000}
-                ]
-                raise RuntimeError("页面就绪超过10秒门槛")
-            browser.sampler.phase = "cold-tasks"
-            run["cold"].append(browser.evaluate(code))
-            enforce_browser_limits(browser, run, "cold")
-            dump(output / "results.json", result)
-            if index == 0:
-                browser.sampler.phase = "hot-tasks"
-                for sample in range(args.hot_samples):
-                    run["hot"].append(browser.evaluate(code))
-                    enforce_browser_limits(browser, run, "hot")
-                    dump(output / "results.json", result)
-                    print(f"热样本 {sample + 1}/{args.hot_samples}", flush=True)
-                browser.sampler.phase = "soak"
-                start = time.perf_counter()
-                while time.perf_counter() - start < args.soak_seconds:
-                    run["soak"].append(browser.evaluate(code))
-                    run["soakElapsedSeconds"] = time.perf_counter() - start
-                    enforce_browser_limits(browser, run, "soak")
-                    dump(output / "results.json", result)
-                    print(
-                        f"长时 {run['soakElapsedSeconds']:.1f}/{args.soak_seconds:.1f}s", flush=True
-                    )
-            run["errors"] = browser.call("errors")
-            run["network"] = browser.call("network", "requests")
-            if run["errors"].get("errors") or any(
-                r.get("url", "").startswith(("http:", "https:"))
-                for r in run["network"].get("requests", [])
-            ):
-                raise RuntimeError("页面异常或出现外连请求")
-            run["status"] = "sampled"
-        except Exception as exc:
-            failed = True
-            run["status"] = "failed"
-            run["error"] = str(exc)
-        finally:
+
+    def run_session(index: int) -> dict[str, Any]:
+        """跑完一个编号的冷会话；DevTools通道断开时整会话丢弃、新profile重建重跑。
+
+        会话级重试：命中通道签名的失败尝试（含其已采样本）不并入统计，产物移入
+        discarded/；soak中断连同样整会话重跑，即完整重启soak、不拼接两段。
+        """
+        attempt = 0
+        while True:
+            attempt += 1
+            print(
+                f"冷会话 {index + 1}/{args.cold_runs}"
+                + (f"（通道重试 {attempt - 1}/{MAX_CHANNEL_RETRIES}）" if attempt > 1 else ""),
+                flush=True,
+            )
+            browser = CapacityBrowser(
+                output / f"cold-{index + 1:02}", args.browser.resolve(), headed=args.headed
+            )
+            run: dict[str, Any] = {"index": index + 1, "cold": [], "hot": [], "soak": []}
+            if len(result["runs"]) > index:
+                result["runs"][index] = run
+            else:
+                result["runs"].append(run)
+            failure: BaseException | None = None
             try:
-                run["memory"] = browser.finish()
+                run["browser"] = browser.start()
+                run["startup"] = browser.open_report(artifact)
+                ready_ms = run["startup"]["probe"]["readyPaintMs"]
+                if ready_ms is None or ready_ms > 10000:
+                    run["thresholdFailures"] = [
+                        {"kind": "ready-time", "observedMs": ready_ms, "limitMs": 10000}
+                    ]
+                    raise RuntimeError("页面就绪超过10秒门槛")
+                browser.sampler.phase = "cold-tasks"
+                run["cold"].append(browser.evaluate(code))
+                enforce_browser_limits(browser, run, "cold")
+                dump(output / "results.json", result)
+                if index == 0:
+                    browser.sampler.phase = "hot-tasks"
+                    for sample in range(args.hot_samples):
+                        run["hot"].append(browser.evaluate(code))
+                        enforce_browser_limits(browser, run, "hot")
+                        dump(output / "results.json", result)
+                        print(f"热样本 {sample + 1}/{args.hot_samples}", flush=True)
+                    browser.sampler.phase = "soak"
+                    start = time.perf_counter()
+                    while time.perf_counter() - start < args.soak_seconds:
+                        run["soak"].append(browser.evaluate(code))
+                        run["soakElapsedSeconds"] = time.perf_counter() - start
+                        enforce_browser_limits(browser, run, "soak")
+                        dump(output / "results.json", result)
+                        print(
+                            f"长时 {run['soakElapsedSeconds']:.1f}/{args.soak_seconds:.1f}s",
+                            flush=True,
+                        )
+                run["errors"] = browser.call("errors")
+                run["network"] = browser.call("network", "requests")
+                if run["errors"].get("errors") or any(
+                    r.get("url", "").startswith(("http:", "https:"))
+                    for r in run["network"].get("requests", [])
+                ):
+                    raise RuntimeError("页面异常或出现外连请求")
+                run["status"] = "sampled"
             except Exception as exc:
-                failed = True
-                run["cleanupError"] = str(exc)
+                run["status"] = "failed"
+                run["error"] = str(exc)
+                failure = exc
+            finally:
+                try:
+                    run["memory"] = browser.finish()
+                except Exception as exc:
+                    run["cleanupError"] = str(exc)
+                    failure = failure or exc
+                dump(output / "results.json", result)
+            signature = channel_error_signature(failure)
+            if signature is None or attempt > MAX_CHANNEL_RETRIES:
+                return run
+            result["runs"].pop(index)
+            result.setdefault("channelRetries", []).append(
+                {
+                    "phase": browser.sampler.phase,
+                    "runIndex": index + 1,
+                    "attempt": attempt,
+                    "errorSignature": signature,
+                    "discardedEvidencePath": discard_session(browser, attempt),
+                }
+            )
             dump(output / "results.json", result)
-        if failed:
+            print(
+                f"DevTools通道断开（{signature}）：丢弃会话{index + 1}第{attempt}次尝试，"
+                "以新profile重建同编号会话重跑",
+                flush=True,
+            )
+
+    for index in range(args.cold_runs):
+        run = run_session(index)
+        if run["status"] != "sampled" or "cleanupError" in run:
+            failed = True
             break
     result["summaries"] = {
         mode: summaries(result["runs"], mode) for mode in ("cold", "hot", "soak")

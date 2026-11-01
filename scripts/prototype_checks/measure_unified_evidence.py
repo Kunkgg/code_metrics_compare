@@ -10,7 +10,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from scripts.prototype_checks.measure_unified_capacity import CapacityBrowser
+from scripts.prototype_checks.measure_unified_capacity import (
+    MAX_CHANNEL_RETRIES,
+    CapacityBrowser,
+    channel_error_signature,
+    discard_session,
+)
 from scripts.prototype_checks.run_baseline import ROOT, dump, fingerprint
 
 
@@ -88,7 +93,7 @@ def main() -> None:
         *sorted((ROOT / "prototypes").rglob("*.py")),
     ]
     result: dict[str, Any] = {
-        "protocol": "scale-evidence-DOM-1",
+        "protocol": "scale-evidence-DOM-2",
         "command": sys.argv,
         "smoke": args.smoke,
         "artifact": fingerprint(report),
@@ -101,63 +106,106 @@ def main() -> None:
             "同一会话中深页先于末页，两者分别统计20个cold及20个hot样本",
             "完整集合由独立raw SHA256核验，DOM窗口与该结果逐项对应",
             "RSS抽样可能漏峰，共享页重计，读取竞态保留",
+            "agent-browser与Chrome DevTools的WebSocket通道偶发reset（判定见stage5-cdp-repro/verdict.md）："
+            "命中签名的失败会话整体丢弃，关闭残留会话后以新profile重建同编号会话重跑（每会话最多重试3次）；"
+            "重试登记于channelRetries、被弃产物保留在discarded/，重试会话的计时与P95语义与首次一致",
         ],
     }
     failed = False
-    for index in range(args.cold_runs):
-        browser = CapacityBrowser(output / f"cold-{index + 1:02}", args.browser, headed=False)
-        run: dict[str, Any] = {"index": index + 1, "cold": [], "hot": []}
-        result["runs"].append(run)
-        try:
-            run["browser"] = browser.start()
-            run["startup"] = browser.open_report(report)
-            if run["startup"]["probe"]["readyPaintMs"] > 10000:
-                raise RuntimeError("就绪超过10秒门槛")
-            for mode, batches in (("cold", 1), ("hot", args.hot_samples if index == 0 else 0)):
-                browser.sampler.phase = mode + "-evidence"
-                for batch in range(batches):
-                    cfg = {
-                        "tasks": proof["tasks"],
-                        "batch": batch + 1 if mode == "hot" else 0,
-                        "smoke": args.smoke,
-                    }
-                    checked = browser.evaluate(
-                        script.replace("CONFIG", json.dumps(cfg, ensure_ascii=False))
-                    )
-                    if checked.get("result") != "passed" or not checked.get("tasks"):
-                        raise RuntimeError("大规模证据DOM检查失败或没有深页任务")
-                    samples = checked["tasks"]
-                    names = [sample["task"] for sample in samples]
-                    if len(set(names)) != len(names) or len(names) != 26:
-                        raise RuntimeError("证据DOM任务覆盖不完整或重复（期望26项）")
-                    run[mode].append(samples)
-                    dump(output / "results.json", result)
-                    print(
-                        f"冷会话 {index + 1}/{args.cold_runs} {mode} {batch + 1}/{batches}",
-                        flush=True,
-                    )
-            run["errors"] = browser.call("errors")
-            run["network"] = browser.call("network", "requests")
-            if run["errors"].get("errors") or any(
-                r.get("url", "").startswith(("http:", "https:"))
-                for r in run["network"].get("requests", [])
-            ):
-                raise RuntimeError("脚本错误或外连请求")
-            run["status"] = "sampled"
-        except Exception as error:
-            failed = True
-            run.update(status="failed", error=str(error))
-        finally:
+
+    def run_session(index: int) -> dict[str, Any]:
+        """跑完一个编号的冷会话；DevTools通道断开时整会话丢弃、新profile重建重跑。
+
+        会话级重试：命中通道签名的失败尝试（含其已采样本）不并入统计，
+        产物移入discarded/；重试不改变计时、采样与汇总语义。
+        """
+        attempt = 0
+        while True:
+            attempt += 1
+            print(
+                f"冷会话 {index + 1}/{args.cold_runs}"
+                + (f"（通道重试 {attempt - 1}/{MAX_CHANNEL_RETRIES}）" if attempt > 1 else ""),
+                flush=True,
+            )
+            browser = CapacityBrowser(output / f"cold-{index + 1:02}", args.browser, headed=False)
+            run: dict[str, Any] = {"index": index + 1, "cold": [], "hot": []}
+            if len(result["runs"]) > index:
+                result["runs"][index] = run
+            else:
+                result["runs"].append(run)
+            failure: BaseException | None = None
             try:
-                run["memory"] = browser.finish()
-                if run["memory"].get("peakIncrementBytes", 0) > 2 * 1024**3:
-                    failed = True
-                    run.update(status="failed", error="浏览器新增进程树RSS超过2GiB")
+                run["browser"] = browser.start()
+                run["startup"] = browser.open_report(report)
+                if run["startup"]["probe"]["readyPaintMs"] > 10000:
+                    raise RuntimeError("就绪超过10秒门槛")
+                for mode, batches in (("cold", 1), ("hot", args.hot_samples if index == 0 else 0)):
+                    browser.sampler.phase = mode + "-evidence"
+                    for batch in range(batches):
+                        cfg = {
+                            "tasks": proof["tasks"],
+                            "batch": batch + 1 if mode == "hot" else 0,
+                            "smoke": args.smoke,
+                        }
+                        checked = browser.evaluate(
+                            script.replace("CONFIG", json.dumps(cfg, ensure_ascii=False))
+                        )
+                        if checked.get("result") != "passed" or not checked.get("tasks"):
+                            raise RuntimeError("大规模证据DOM检查失败或没有深页任务")
+                        samples = checked["tasks"]
+                        names = [sample["task"] for sample in samples]
+                        if len(set(names)) != len(names) or len(names) != 26:
+                            raise RuntimeError("证据DOM任务覆盖不完整或重复（期望26项）")
+                        run[mode].append(samples)
+                        dump(output / "results.json", result)
+                        print(
+                            f"冷会话 {index + 1}/{args.cold_runs} {mode} {batch + 1}/{batches}",
+                            flush=True,
+                        )
+                run["errors"] = browser.call("errors")
+                run["network"] = browser.call("network", "requests")
+                if run["errors"].get("errors") or any(
+                    r.get("url", "").startswith(("http:", "https:"))
+                    for r in run["network"].get("requests", [])
+                ):
+                    raise RuntimeError("脚本错误或外连请求")
+                run["status"] = "sampled"
             except Exception as error:
-                failed = True
-                run["cleanupError"] = str(error)
+                run.update(status="failed", error=str(error))
+                failure = error
+            finally:
+                try:
+                    run["memory"] = browser.finish()
+                    if run["memory"].get("peakIncrementBytes", 0) > 2 * 1024**3:
+                        run.update(status="failed", error="浏览器新增进程树RSS超过2GiB")
+                except Exception as error:
+                    run["cleanupError"] = str(error)
+                    failure = failure or error
+                dump(output / "results.json", result)
+            signature = channel_error_signature(failure)
+            if signature is None or attempt > MAX_CHANNEL_RETRIES:
+                return run
+            result["runs"].pop(index)
+            result.setdefault("channelRetries", []).append(
+                {
+                    "phase": browser.sampler.phase,
+                    "runIndex": index + 1,
+                    "attempt": attempt,
+                    "errorSignature": signature,
+                    "discardedEvidencePath": discard_session(browser, attempt),
+                }
+            )
             dump(output / "results.json", result)
-        if failed:
+            print(
+                f"DevTools通道断开（{signature}）：丢弃会话{index + 1}第{attempt}次尝试，"
+                "以新profile重建同编号会话重跑",
+                flush=True,
+            )
+
+    for index in range(args.cold_runs):
+        run = run_session(index)
+        if run["status"] != "sampled" or "cleanupError" in run:
+            failed = True
             break
     summaries = []
     for mode in ("cold", "hot"):
