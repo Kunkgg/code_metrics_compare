@@ -1,7 +1,7 @@
 # 05 关联证据的小规模验证
 
 Type: task
-Status: claimed
+Status: resolved
 
 ## 问题与结论
 
@@ -32,3 +32,7 @@ Status: claimed
 
 
 本轮边界收口：见 [07 小规模需求追溯](07-small-boundaries.md)。真实 JSON 的未知值／未知阈值、目录覆盖及版本／映射限制已贯通构建与正常场景三页／静态；零分母、组合歧义、注入、换行字典、确定性乱序响应和全部证据分页／返回完成独立补验。Golden 未改，完整 pytest 484 项通过。旧 workspace 热样本包含重选当前指标的无请求点击，不能用作真实查询性能通过依据；新脚本已修正，历史产物保留。满规模与资源收口转入 [06](06-capacity.md)，Windows／Edge 未测。
+
+## Answer
+
+阶段 4 完成：全部关联证据集合在 Worker 内完整过滤后分页——Node 99 项、Chrome 专项 34 项、浏览器 251 项（76 页、四类重复证据、两侧独立选组、多组交叉、下钻与完整返回）。满规模证据浏览器后续在 [06](06-capacity.md) 记录（full-mixed/full-wide 各 20/20 会话全过，证据 `output/unified-prototype/stage5-handoff-evidence-exec-3/`）。

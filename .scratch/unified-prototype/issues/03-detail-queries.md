@@ -1,7 +1,7 @@
 # 03 全部明细与状态
 
 Type: task
-Status: claimed
+Status: resolved
 
 ## 范围
 
@@ -73,3 +73,7 @@ Status: claimed
 
 
 本轮边界收口：见 [07 小规模需求追溯](07-small-boundaries.md)。真实 JSON 的未知值／未知阈值、目录覆盖及版本／映射限制已贯通构建与正常场景三页／静态；零分母、组合歧义、注入、换行字典、确定性乱序响应和全部证据分页／返回完成独立补验。Golden 未改，完整 pytest 484 项通过。旧 workspace 热样本包含重选当前指标的无请求点击，不能用作真实查询性能通过依据；新脚本已修正，历史产物保留。满规模与资源收口转入 [06](06-capacity.md)，Windows／Edge 未测。
+
+## Answer
+
+阶段 2 完成：20 项明细入口、名称／数值筛选、唯一匹配与同名歧义、严格超限、未知与冗余块重数全部接入并通过——参考 UI 414 项业务断言、Worker 1,524 项检查、完整 pytest 484 项；`threshold-change / hugeMethod all` 排序经用户追加确认。边界补验见 [07](07-small-boundaries.md)。证据：`output/unified-prototype/{resume-*,sort-approved-*,next-final-validated}`。

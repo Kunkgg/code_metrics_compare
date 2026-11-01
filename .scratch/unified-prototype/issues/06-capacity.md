@@ -1,7 +1,7 @@
 # 06 满规模容量测量准备
 
 Type: task
-Status: claimed
+Status: resolved
 
 ## 当前结论
 
@@ -237,3 +237,7 @@ Windows 可换成本机 Chrome／Edge 可执行文件路径，读取复制的报
 ### 净影响满规模验证
 
 full-mixed（首轮成功测量 artifact）：12 指标 × 4 范围 = 48 组合，排名对象 1,098,512，分页请求 192，21.03s，峰值 RSS 2.63 GiB，PASS。full-wide（重跑成功测量 artifact）：12 指标 × 2 范围 = 24 组合，同样 1,098,512 排名对象，96 请求，13.73s，峰值 2.24 GiB，PASS。两组 exitCode 0、failed:0、cancellations 0，所用 HTML sha256 与测量记录完全一致；每侧 100k 文件／100 万普通函数／12,920 目录。full-deep：单侧 JSON 567,702,773 字节超 V8 单字符串上限，脚本两种读法均 `ERR_STRING_TOO_LONG`（与 oracle 修复前同类，未加流式），deep 净影响满规模由 oracle 334 任务间接佐证。证据：`output/unified-prototype/stage5-impact-full/{REPORT.md,report.json,full-mixed/,full-wide/}`。
+
+## Answer
+
+满规模容量验证（本机）完成：十组 100k／1m 输入短测 20 冷／20 热全部完成；十组完整明细 oracle 均 334/0；full-mixed 长时 1,803.7s 跑满（峰值增量 0.81 GiB）；full-mixed/full-wide 证据浏览器各 20/20 会话全过；净影响满规模 72 组合通过（1,098,512 排名对象）；full 100k 端到端生成管线 235.9s／2.67 GiB 达标。测量期三个真实失败（oracle V8 字符串上限、通道断连、startup 竞态）均已修复并归档。保留限制与逐节证据见上文；满规模断网／失败／注入专项登记为 [08](08-resilience-scale.md)；Windows／Edge 已退出验收范围（本轮用户更新，见 [spec](../spec.md)）。
